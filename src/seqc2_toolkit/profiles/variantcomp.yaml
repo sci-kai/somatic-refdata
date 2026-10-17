@@ -1,0 +1,56 @@
+# core-unit-bioinformatics/workflow-nxf-somatic-variantcomp: compares somatic VCFs of the
+# same tumor/normal pair sequenced with different technologies (here SEQC2 WGS vs. WES).
+# Needs at least two technologies per pair, e.g. datasets/variantcomp_small.yaml.
+name: variantcomp
+description: compare somatic VCFs of one tumor/normal pair across technologies (WGS truth)
+pipeline: core-unit-bioinformatics/workflow-nxf-somatic-variantcomp
+revision: dev
+nf_profile: conda
+accepts:
+  # the pipeline needs FORMAT/AF or AD (Strelka: tier counts only, SomaticSniper: DP4)
+  callers: [muTect2]
+  technologies: [WGS, WES]
+requires: [vcf, reference]
+# relative paths: the dataset folder can be moved or committed (test-data repo)
+paths: relative
+samplesheet:
+  file: samplesheet.csv
+  rows: vcf
+  missing: n/a
+  columns:
+    sample: "SEQC2_{pair}"
+    technology: "{tech}"
+    library_type: "{library_type}"
+    tumor_id: "{tumor_id}"
+    normal_id: "{normal_id}"
+    caller: "{caller}-{aligner}"
+    vcf: "{vcf}"
+    tumor_bam: "{tumor_bam}"
+    normal_bam: "{normal_bam}"
+    target_bed: "{target_bed}"
+params:
+  input: "{samplesheet}"
+  fasta: "{reference}"
+  truth_technology: wgs
+  # callable regions and read evidence need tumor and normal BAMs of every pair
+  callable_regions: "{all_bams}"
+  read_evidence: "{all_bams}"
+  vep_gtf: "{gencode_gtf}"
+  giab_homopolymer: "{giab_homopolymer}"
+  giab_tandem_repeat: "{giab_tandem_repeat}"
+  giab_segmental_duplication: "{giab_segmental_duplication}"
+  giab_low_mappability: "{giab_low_mappability}"
+  giab_all_difficult: "{giab_all_difficult}"
+  known_variants: known_variants.csv
+files:
+  # SEQC2 truth set as external benchmark for every sample; a small 'required' demo list
+  # (variants of chr22 found by WGS and WES of IL_1) for the first pair
+  known_variants.csv: |
+    name,sample,mode,variants,regions
+    seqc2_truth,all,benchmark,{truth_snv};{truth_indel},{truth_regions}
+    required_demo,SEQC2_{first_pair},required,known/required_demo.csv,n/a
+  known/required_demo.csv: |
+    chrom,pos,ref,alt,gene,label
+    chr22,50177152,C,T,PANX2,demo_1
+    chr22,50243801,T,C,TUBGCP6,demo_2
+    chr22,23164333,C,T,RAB36,demo_3

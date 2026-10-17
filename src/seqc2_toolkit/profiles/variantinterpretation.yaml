@@ -1,0 +1,24 @@
+# cio-abcd/variantinterpretation: annotation (Ensembl VEP), filtering, TSV/HTML reports and
+# TMB of VCFs. One samplesheet row per VCF. The VEP cache is not SEQC2 data: give it with
+# --vep_cache (and --vep_cache_version, 115 for v1.2.0) on the run command line or in an
+# extra config (-c).
+name: variantinterpretation
+description: annotate and report somatic VCFs with Ensembl VEP and datavzrd (cio-abcd)
+pipeline: cio-abcd/variantinterpretation
+revision: v1.2.0
+nf_profile: conda
+accepts:
+  # allele fractions are read from FORMAT/AD (--allele_fraction FORMAT_AD)
+  callers: [muTect2]
+requires: [vcf, reference]
+paths: absolute
+samplesheet:
+  file: samplesheet.csv
+  rows: vcf
+  columns:
+    sample: "SEQC2_{pair}_{tech}_{aligner}_{caller}"
+    vcf: "{vcf}"
+    group: "SEQC2_{pair}"
+params:
+  input: "{samplesheet}"
+  fasta: "{reference}"
