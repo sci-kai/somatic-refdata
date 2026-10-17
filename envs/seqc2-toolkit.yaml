@@ -1,0 +1,21 @@
+name: seqc2-toolkit
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - pyyaml
+  - certifi
+  # building datasets: subsets, indices, remote reads (BAM slices, FASTA contigs)
+  - samtools=1.24
+  - bcftools=1.24
+  - htslib=1.24
+  # seqc2 run
+  - nextflow
+  # development
+  - pytest
+  - black
+  - ruff
+  - pip
+  - pip:
+      - -e ..

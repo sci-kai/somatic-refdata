@@ -1,0 +1,67 @@
+# Where the SEQC2 somatic reference data are, and how their files are named.
+# Fang et al. 2021, Nat Biotechnol 39:1151 (doi:10.1038/s41587-021-00993-6);
+# Xiao et al. 2021, Nat Biotechnol 39:1141 (doi:10.1038/s41587-021-00994-5).
+# All paths are relative to base_url.
+
+base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG"
+
+# md5 lists of the server: they define the catalog of files (seqc2 catalog)
+md5_lists:
+  # all somatic VCFs, paths relative to analysis/SNVs/vcfs/
+  vcf: {list: "analysis/SNVs/vcfs/all.md5", folder: "analysis/SNVs/vcfs"}
+  # all BAMs and their indices (.bai), bare file names; folder data/<technology>/
+  bam: {list: "data/SEQC-II_bam.md5", folder: "data/{technology}"}
+  bai: {list: "data/SEQC-II_bai.md5", folder: "data/{technology}"}
+
+# File names of the paired tumor/normal series. Named groups become catalog fields.
+# technology: WGS, WES; center: sequencing center (EA, FD, IL, LL, NC, NS, NV);
+# replicate: 1..9; role: T (tumor, HCC1395) / N (normal, HCC1395BL)
+patterns:
+  vcf: '^(?P<technology>WGS|WES)/(?P=technology)_(?P<center>[A-Z]+)_(?P<replicate>\d+)\.(?P<aligner>bwa|bowtie|novo)\.(?P<caller>muTect2|strelka|somaticSniper)\.vcf\.gz$'
+  bam: '^(?P<technology>WGS|WES)_(?P<center>[A-Z]+)_(?P<role>[TN])_(?P<replicate>\d+)\.(?P<aligner>bwa)\.dedup\.bam$'
+  bai: '^(?P<technology>WGS|WES)_(?P<center>[A-Z]+)_(?P<role>[TN])_(?P<replicate>\d+)\.(?P<aligner>bwa)\.dedup\.bai$'
+
+# sample columns of every SEQC2 somatic VCF (all callers)
+vcf_samples: {tumor: TUMOR, normal: NORMAL}
+
+# FORMAT fields per caller (for workflow profiles that need e.g. AD or AF)
+caller_fields:
+  muTect2: [AD, AF, DP]
+  strelka: [DP, AU, CU, GU, TU]
+  somaticSniper: [DP, DP4, BCOUNT]
+
+# GRCh38 reference of all SEQC2 alignments and calls (with decoys and viral contigs)
+reference:
+  name: GRCh38.d1.vd1
+  fasta: "technical/reference_genome/GRCh38/GRCh38.d1.vd1.fa"
+  fai: "technical/reference_genome/GRCh38/GRCh38.d1.vd1.fa.fai"
+
+# exome capture kit of all SEQC2 WES libraries (Agilent SureSelect v6 + UTR, hg38 liftover)
+target_bed:
+  WES: "technical/reference_genome/Exome_Target_bed/S07604624_Covered_human_all_v6_plus_UTR.liftover.to.hg38.bed6.gz"
+
+# SEQC2 somatic reference call set (truth), per release
+truth:
+  v1.2.1:
+    snv: "release/v1.2.1/high-confidence_sSNV_in_HC_regions_v1.2.1.vcf.gz"
+    indel: "release/v1.2.1/high-confidence_sINDEL_in_HC_regions_v1.2.1.vcf.gz"
+    regions: "release/v1.2.1/High-Confidence_Regions_v1.2.bed"
+  v1.2:
+    snv: "release/v1.2/high-confidence_sSNV_in_HC_regions_v1.2.vcf.gz"
+    indel: "release/v1.2/high-confidence_sINDEL_in_HC_regions_v1.2.vcf.gz"
+    regions: "release/v1.2/High-Confidence_Regions_v1.2.bed"
+
+# annotation resources (not SEQC2), GRCh38
+annotation:
+  gencode:
+    url: "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{release}/gencode.v{release}.basic.annotation.gtf.gz"
+  giab:
+    # GIAB genome stratifications v3.5 (Dwarshuis et al. 2024, Nat Commun 15:9029)
+    base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.5/GRCh38@all"
+    md5: "GRCh38-genome-stratifications-md5s.txt"
+    files:
+      homopolymer: "LowComplexity/GRCh38_AllHomopolymers_ge7bp_imperfectge11bp_slop5.bed.gz"
+      tandem_repeat: "LowComplexity/GRCh38_AllTandemRepeats.bed.gz"
+      segmental_duplication: "SegmentalDuplications/GRCh38_segdups.bed.gz"
+      low_mappability: "Mappability/GRCh38_lowmappabilityall.bed.gz"
+      all_difficult: "Union/GRCh38_alldifficultregions.bed.gz"
