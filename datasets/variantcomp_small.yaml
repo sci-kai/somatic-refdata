@@ -1,0 +1,18 @@
+# Small WGS + WES dataset for the vcf-comp pipeline (test profile test_seqc2):
+# three centers, chr22 only, BAM slices of two 1-Mb windows, about 150 MB.
+select:
+  technologies: [WGS, WES]
+  pairs: [IL_1, FD_1, NV_1]
+  aligners: [bwa]
+  callers: [muTect2]
+data:
+  bam: true
+  gencode: 46
+  giab: [homopolymer, tandem_repeat, segmental_duplication, low_mappability, all_difficult]
+subset:
+  contigs: [chr22]
+  # the two 1-Mb windows of chr22 with the most PASS exome calls in IL_1 + truth
+  bam_windows: ["chr22:23000000-24000000", "chr22:50000000-50818468"]
+  bam_targets: true
+  bam_padding: 100
+  bam_subsample: 0.5

@@ -1,0 +1,9 @@
+# Full WGS + WES comparison for an HPC: the first replicate of every center that sequenced
+# both technologies, genome-wide, VCFs only (add data.bam: true for the 10-160 GB BAMs).
+select:
+  technologies: [WGS, WES]
+  centers: all
+  replicates: [1]
+data:
+  gencode: 46
+  giab: [homopolymer, tandem_repeat, segmental_duplication, low_mappability, all_difficult]

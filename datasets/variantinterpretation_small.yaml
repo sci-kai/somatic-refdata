@@ -1,0 +1,8 @@
+# Small dataset for cio-abcd/variantinterpretation: WES of IL_1, chr22, MuTect2 VCF.
+select:
+  technologies: [WES]
+  pairs: [IL_1]
+data:
+  truth: false
+subset:
+  contigs: [chr22]

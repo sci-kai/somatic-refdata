@@ -1,0 +1,4 @@
+# The default dataset: everything left out takes the defaults.
+# WGS of pair IL_1 (Illumina center, replicate 1): bwa + MuTect2 VCF, reference FASTA
+# (3.2 GB) and SEQC2 truth set v1.2.1, genome-wide. No BAMs.
+{}
