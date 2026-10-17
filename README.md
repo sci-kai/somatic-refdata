@@ -1,4 +1,200 @@
 # seqc2-toolkit
 
-Download, select and prepare SEQC2 somatic reference data (HCC1395 / HCC1395BL) for
-testing bioinformatics workflows.
+Select, download and prepare the SEQC2 somatic reference data (breast cancer cell line
+HCC1395 and its matched normal HCC1395BL) for testing bioinformatics workflows, and write
+the samplesheets and parameters that the workflows need.
+
+- **Select** what a workflow needs from the SEQC2 data: technologies, sequencing
+  centers and replicates, aligners, callers, VCFs and/or BAMs, contig subsets and BAM
+  slices.
+- **Download only what is missing**: one shared cache, md5-checked against the server's
+  lists; derived files are rebuilt only when their recipe changes.
+- **Write workflow inputs** with small profiles: samplesheet, params and extra files for
+  any (nf-core style) workflow; optionally run it with Nextflow.
+
+The toolkit knows nothing about a specific workflow: everything workflow-specific is in a
+profile (`src/seqc2_toolkit/profiles/`, or your own YAML file).
+
+## Install
+
+```bash
+conda env create -f envs/seqc2-toolkit.yaml   # python, pyyaml, samtools, bcftools, nextflow
+conda activate seqc2-toolkit                   # installs this package (pip -e) as well
+seqc2 --help
+```
+
+Without conda: `pip install -e .` (needs samtools, bcftools, tabix and bgzip on `PATH`
+for building datasets).
+
+## Quick start
+
+```bash
+seqc2 catalog                                     # what SEQC2 provides
+seqc2 plan datasets/variantcomp_small.yaml        # what a config selects, sizes, cache
+seqc2 fetch datasets/variantcomp_small.yaml --outdir data/variantcomp_small
+seqc2 samplesheet datasets/variantcomp_small.yaml --outdir data/variantcomp_small \
+    --profile variantcomp                         # -> data/variantcomp_small/variantcomp/
+seqc2 run datasets/variantcomp_small.yaml --outdir data/variantcomp_small \
+    --profile variantcomp --pipeline ../workflow-nxf-somatic-variantcomp --nf-profile conda
+```
+
+## What SEQC2 provides
+
+The SEQC2 Somatic Mutation Working Group sequenced HCC1395 / HCC1395BL at several
+centers, with several technologies, and called somatic variants with several pipelines
+(Fang et al. 2021, Xiao et al. 2021). The toolkit covers the paired tumor/normal series:
+
+| | WGS | WES |
+|---|---|---|
+| Pairs (center_replicate) | 21: EA_1, FD_1-3, IL_1-3, LL_1, NC_1, NS_1-9, NV_1-3 | 12: EA_1, FD_1-3, IL_1-3, LL_1, NC_1, NV_1-3 |
+| VCFs | 3 aligners (bwa, bowtie, novo) x 3 callers (muTect2, strelka, somaticSniper) | same |
+| BAMs | bwa, tumor + normal, every pair (10-160 GB each) | same |
+
+Plus: the GRCh38.d1.vd1 reference, the exome target BED, the SEQC2 somatic truth set
+(v1.2, v1.2.1) with its high-confidence regions; optional GENCODE and GIAB
+stratification files. Not yet in the catalog: the FFPE (FFG, FFX), library-prep (LBP),
+purity/depth (SPP) and AmpliSeq series, and FASTQs (SRA only).
+
+`seqc2 catalog` shows the current state of the server.
+
+## Dataset config
+
+A YAML file with three optional sections; everything left out takes the default.
+
+```yaml
+select:
+  technologies: [WGS]     # WGS and/or WES
+  centers: [IL]           # sequencing centers, or all
+  replicates: [1]         # replicate numbers, or all
+  pairs: null             # explicit pairs, e.g. [IL_1, FD_2] (replaces centers/replicates)
+  aligners: [bwa]         # bwa, bowtie, novo
+  callers: [muTect2]      # muTect2, strelka, somaticSniper
+data:
+  vcf: true               # the somatic VCFs of the selection
+  bam: false              # false, true (every selected pair) or a list of pairs
+  reference: true         # GRCh38.d1.vd1 FASTA + .fai (3.2 GB, or only subset.contigs)
+  target_bed: true        # exome target BED (when WES is selected)
+  truth: v1.2.1           # SEQC2 truth set release, or false
+  gencode: false          # GENCODE basic GTF release (e.g. 46), or false
+  giab: []                # GIAB stratifications: homopolymer, tandem_repeat,
+                          #   segmental_duplication, low_mappability, all_difficult
+subset:
+  contigs: null           # only these contigs in every file, e.g. [chr22]
+  bam_windows: null       # BAMs: only these windows (read remotely, no full download)
+  bam_targets: true       # BAMs: within the windows only the WES targets + padding
+  bam_padding: 100
+  bam_subsample: null     # fraction of read pairs (fixed seed 42)
+name: null                # default: the config file name
+outdir: null              # default: ./<name>; relative to the config file
+cache: null               # default: $SEQC2_CACHE or ~/.cache/seqc2
+```
+
+**Default (empty config):** WGS of one center and replicate, IL_1, aligned with bwa and
+called with MuTect2; VCF, reference and truth set, genome-wide.
+
+Unknown keys, unknown values (e.g. a misspelled caller) and combinations that SEQC2
+doesn't provide (e.g. NS pairs with WES) stop with an error that names the allowed values.
+
+### How much data does a workflow need?
+
+| Question | Recommendation |
+|---|---|
+| Replicates | One per center (`replicates: [1]`). Replicates of one center are the same DNA, library kit and sequencer; they only matter for reproducibility studies. Several centers show real technical variability. |
+| Technologies | WGS for genome-wide tests; WES for capture workflows (with `target_bed`); both for cross-technology comparisons. |
+| Aligners / callers | One (bwa + muTect2) unless the workflow compares callers or aligners. MuTect2 writes FORMAT/AD and AF; Strelka only tier counts (AU/CU/GU/TU), SomaticSniper DP4/BCOUNT: check which fields your workflow reads. |
+| BAMs | Only for workflows that read alignments (coverage, read evidence, calling). With `subset.bam_windows` the toolkit reads small slices remotely instead of downloading 10-160 GB per BAM. |
+| Size | For CI / laptops: `contigs: [chr22]`, BAM windows of 1-2 Mb, `bam_subsample: 0.5`: about 150 MB for 3 pairs x 2 technologies. |
+
+Examples in `datasets/`: `default.yaml`, `variantcomp_small.yaml`, `variantcomp_full.yaml`,
+`variantinterpretation_small.yaml`.
+
+## Downloads, cache and checksums
+
+- Every remote file is downloaded once into the cache
+  (`<cache>/<host>/<path>`, resumable) and checked against the md5 of the server's lists
+  (VCFs, BAMs, BAM indices, GIAB files). `<cache>/registry.json` records size, time and
+  md5 of every cached file, so it is not hashed again unless it changed (`--verify`
+  hashes everything again).
+- The dataset folder holds the derived files (bgzipped and indexed VCFs, subsets, BAM
+  slices, ...). `seqc2_manifest.json` records the recipe (source, md5, settings) and md5
+  of each; `seqc2 fetch` rebuilds only files whose recipe changed or that were modified,
+  and removes files that the config no longer selects.
+- `checksums.md5`, `README.md` (sources, settings) and `dataset.json` (the dataset for
+  profiles) are written into the dataset folder. `seqc2 verify` checks every file.
+- HTTPS: downloads are done in Python; the CA bundle is taken from `--ca-bundle`,
+  `$CURL_CA_BUNDLE`, `$SSL_CERT_FILE`, the Python package certifi or the system paths, and
+  exported for samtools/bcftools reading remote files. This avoids
+  `curl: (77) error adding trust anchors` with conda builds of curl.
+
+## Dataset folder
+
+```
+reference/GRCh38.d1.vd1[_<contigs>].fa[.gz]  (+ .fai, .gzi)
+bed/S07604624_Covered_human_all_v6_plus_UTR_hg38.bed
+vcf/<pair>_<technology>.<aligner>.<caller>.vcf.gz  (+ .tbi; sample columns TUMOR, NORMAL)
+bam/<pair>_<technology>_<T|N>.bam  (+ .bam.bai)
+truth/high-confidence_sSNV|sINDEL_in_HC_regions_<release>.vcf.gz, High-Confidence_Regions_*.bed
+annotation/gencode.v<release>.basic.annotation.gtf.gz (+ .tbi)
+annotation/giab/GRCh38/<GIAB release path>
+dataset.json, checksums.md5, README.md, seqc2_manifest.json
+<profile>/samplesheet.csv, params.yaml, ...   (seqc2 samplesheet / run)
+```
+
+## Workflow profiles
+
+A profile describes how one workflow takes the data. Shipped: `variantcomp`
+(core-unit-bioinformatics/workflow-nxf-somatic-variantcomp) and `variantinterpretation`
+(cio-abcd/variantinterpretation); `seqc2 profiles` lists them. Your own profile is a
+YAML file passed with `--profile path/to/profile.yaml`:
+
+```yaml
+name: variantinterpretation
+pipeline: cio-abcd/variantinterpretation   # nextflow run target (or --pipeline)
+revision: v1.2.0                           # -r (or --revision)
+nf_profile: conda                          # -profile (or --nf-profile)
+accepts: {callers: [muTect2]}              # the dataset must fit (technologies, callers, aligners)
+requires: [vcf, reference]                 # dataset content needed
+paths: absolute                            # or relative (to the samplesheet folder)
+samplesheet:
+  file: samplesheet.csv
+  rows: vcf                                # vcf: per VCF; pair: per pair x technology; bam: per BAM
+  columns:
+    sample: "SEQC2_{pair}_{tech}_{aligner}_{caller}"
+    vcf: "{vcf}"
+params:                                    # params.yaml; a param with an empty variable is left out
+  input: "{samplesheet}"
+  fasta: "{reference}"
+files: {}                                  # extra files: relative path -> template text
+```
+
+Templates are Python format strings with these variables:
+
+| Variables | Content |
+|---|---|
+| per row | `pair`, `center`, `replicate`, `technology` (WGS), `tech` (wgs), `library_type` (wgs / capture), `aligner`, `caller`, `vcf`, `tumor_bam`, `tumor_bai`, `normal_bam`, `normal_bai`, `tumor_id` (TUMOR), `normal_id` (NORMAL), `target_bed`; rows `bam`: `role`, `bam`, `bai` |
+| per dataset | `dataset`, `dataset_dir`, `workdir`, `samplesheet`, `pairs`, `first_pair`, `all_bams` (true/false), `reference`, `reference_fai`, `target_bed_wes`, `truth_snv`, `truth_indel`, `truth_regions`, `gencode_gtf`, `giab_<name>` |
+
+An empty variable gives `n/a` in a samplesheet column (configurable: `samplesheet.missing`),
+leaves a param out, and is an error in an extra file. Rendered params `true` / `false`
+become booleans. `seqc2 run` writes the workflow files, a params file with absolute paths
+into the run folder and runs `nextflow run <pipeline> -r <revision> -profile <profile>
+-params-file ... --outdir <run>/results -resume`; further nextflow arguments follow `--`.
+
+## Development
+
+```bash
+pytest                        # unit tests (no network)
+black src tests && ruff check src tests
+```
+
+Git: CUBI process (`main` releases, `dev`, `feat-*` branches merged fast-forward).
+
+## Citation
+
+SEQC2 data: Fang LT, Zhu B, Zhao Y, et al. Establishing community reference samples, data
+and call sets for benchmarking cancer mutation detection using whole-genome sequencing.
+*Nat Biotechnol* 2021;39:1151-1160 (doi:10.1038/s41587-021-00993-6). Xiao W, Ren L, Chen
+Z, et al. Toward best practice in cancer mutation detection with whole-genome and
+whole-exome sequencing. *Nat Biotechnol* 2021;39:1141-1150 (doi:10.1038/s41587-021-00994-5).
+GIAB stratifications: Dwarshuis N, et al. *Nat Commun* 2024;15:9029. GENCODE: Frankish A,
+et al. *Nucleic Acids Res* 2023;51:D942.
