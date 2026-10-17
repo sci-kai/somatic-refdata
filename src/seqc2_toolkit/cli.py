@@ -115,7 +115,7 @@ def cmd_run(args):
     profile, workdir = write_profile(args, config)
     rundir = Path(args.rundir or f"{config['name']}_{profile['name']}_run").resolve()
     params = profiles.resolve_params(workdir, rundir)
-    extra = [a for a in (args.nextflow_args or []) if a != "--"]
+    extra = args.nextflow_args
     cmd = profiles.run_command(
         profile,
         params,
@@ -208,9 +208,6 @@ def parser():
             p.add_argument("--rundir", help="run folder (default: ./<dataset>_<profile>_run)")
             p.add_argument("--no-resume", action="store_true")
             p.add_argument("--dry-run", action="store_true", help="only print the nextflow command")
-            p.add_argument(
-                "nextflow_args", nargs=argparse.REMAINDER, help="more nextflow arguments after --"
-            )
     p = sub.add_parser("verify", help="recompute the md5 of every dataset file")
     with_config(p)
     p.set_defaults(func=cmd_verify)
@@ -219,9 +216,19 @@ def parser():
     return top
 
 
+def split_nextflow_args(argv):
+    """(seqc2 arguments, nextflow arguments): everything after '--' goes to nextflow."""
+    if "--" not in argv:
+        return argv, []
+    cut = argv.index("--")
+    return argv[:cut], argv[cut + 1 :]
+
+
 def main(argv=None):
     """Entry point of the seqc2 command."""
+    argv, extra = split_nextflow_args(sys.argv[1:] if argv is None else list(argv))
     args = parser().parse_args(argv)
+    args.nextflow_args = extra
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
