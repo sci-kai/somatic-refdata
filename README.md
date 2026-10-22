@@ -12,6 +12,8 @@ somatic draft benchmarks (`source: hg008`).
   slices.
 - **Download only what is missing**: one shared cache, md5-checked against the server's
   lists; derived files are rebuilt only when their recipe changes.
+- **Or download nothing** (`access: remote`): the samplesheet points to the files on the
+  SEQC2 server and the workflow reads them online (quick smoke tests with internet).
 - **Write workflow inputs** with small profiles: samplesheet, params and extra files for
   any (nf-core style) workflow; optionally run it with Nextflow.
 
@@ -39,6 +41,28 @@ seqc2 samplesheet datasets/variantcomp_small.yaml --outdir data/variantcomp_smal
     --profile variantcomp                         # -> data/variantcomp_small/variantcomp/
 seqc2 run datasets/variantcomp_small.yaml --outdir data/variantcomp_small \
     --profile variantcomp --pipeline ../workflow-nxf-somatic-variantcomp --nf-profile conda
+```
+
+## Testing a workflow: three tiers
+
+The toolkit prepares the inputs of three kinds of workflow tests. The workflow repository
+holds the Nextflow test profiles; the toolkit writes their samplesheets and params.
+
+| Profile | Data | Internet | Purpose | Dataset config (examples) |
+|---|---|---|---|---|
+| `test` | a fraction of one sample: one pair, records of one contig (chr21) | yes | does the pipeline run through (setup check) | `*_test.yaml` (`access: remote`) |
+| `test_full` | every record of one sample (IL_1) | yes | the same on a full sample | `*_test_full.yaml` (`access: remote`) |
+| `test_full_offline` | one to all SEQC2 samples, chosen by the user | no (after `seqc2 fetch`) | validation on an offline HPC | `*_offline.yaml` + `--pairs` / `--centers` |
+
+```bash
+# test / test_full: remote datasets; the files are committed into the pipeline (assets/)
+seqc2 samplesheet datasets/variantinterpretation_test.yaml --profile variantinterpretation \
+    --workdir ../variantinterpretation/assets/seqc2/test --config-base '${projectDir}/assets/seqc2/test'
+# test_full_offline: download, prepare, write the workflow files into the dataset folder
+seqc2 fetch datasets/variantinterpretation_offline.yaml --outdir data/vi --pairs IL_1,FD_1,NV_1
+seqc2 samplesheet datasets/variantinterpretation_offline.yaml --outdir data/vi --pairs IL_1,FD_1,NV_1 \
+    --profile variantinterpretation
+nextflow run <pipeline> -profile test_full_offline,singularity --pipelines_testdata_base_path data/vi/
 ```
 
 ## What SEQC2 provides
@@ -129,9 +153,11 @@ HG008 dataset folders use the same layout as SEQC2 with these differences:
 
 ## Dataset config
 
-A YAML file with three optional sections; everything left out takes the default.
+A YAML file with three optional sections and a few top-level keys; everything left out
+takes the default.
 
 ```yaml
+access: local             # local: download and build (seqc2 fetch); remote: see below
 select:
   technologies: [WGS]     # WGS and/or WES
   centers: [IL]           # sequencing centers, or all
@@ -165,6 +191,37 @@ called with MuTect2; VCF, reference and truth set, genome-wide.
 Unknown keys, unknown values (e.g. a misspelled caller) and combinations that SEQC2
 doesn't provide (e.g. NS pairs with WES) stop with an error that names the allowed values.
 
+### Choosing the samples on the command line
+
+`plan`, `fetch`, `samplesheet`, `run` and `verify` take `--technologies`, `--pairs`,
+`--centers` and `--replicates` (comma-separated, or `all`); they replace the values of the
+config's `select` section. `--centers` / `--replicates` clear the config's `pairs`. Use the
+same options for `fetch` and `samplesheet`: `samplesheet` stops if the dataset folder was
+built with another selection.
+
+```bash
+seqc2 fetch datasets/variantcomp_offline.yaml --pairs IL_1,FD_1,NV_1   # three pairs
+seqc2 fetch datasets/variantcomp_offline.yaml --centers all            # first replicate of every center
+seqc2 fetch datasets/variantinterpretation_offline.yaml --centers all --replicates all --technologies WES,WGS
+```
+
+### Remote datasets (`access: remote`)
+
+Nothing is downloaded (except the server's md5 lists for the catalog). `seqc2 fetch` (or
+`seqc2 samplesheet` directly) writes only `dataset.json` and `README.md`; every file in the
+samplesheet and params is a URL that the workflow reads itself (Nextflow stages it):
+
+- VCFs: the original SEQC2 files (plain gzip, not bgzip, no index; sample columns TUMOR,
+  NORMAL; all contigs). The workflow must accept plain gzip.
+- Reference: without `subset.contigs` the whole GRCh38.d1.vd1 FASTA (3.2 GB). With
+  `subset.contigs` a smaller online reference with exactly these contigs
+  (`remote_references` in `sources.yaml`; currently `chr21` from nf-core/test-datasets,
+  sequence identical to GRCh38.d1.vd1). The VCFs still hold every contig: the workflow has
+  to drop the other records (template variable `{contigs}`, e.g. `bcftools view --targets`).
+- Target BED, truth set, GENCODE GTF, GIAB files: the original files (URLs).
+- Not possible: BAM slices (`bam_windows`, `bam_subsample`); whole BAMs are possible
+  but 10-160 GB each.
+
 ### How much data does a workflow need?
 
 | Question | Recommendation |
@@ -175,8 +232,11 @@ doesn't provide (e.g. NS pairs with WES) stop with an error that names the allow
 | BAMs | Only for workflows that read alignments (coverage, read evidence, calling). With `subset.bam_windows` the toolkit reads small slices remotely instead of downloading 10-160 GB per BAM. |
 | Size | For CI / laptops: `contigs: [chr22]`, BAM windows of 1-2 Mb, `bam_subsample: 0.5`: about 150 MB for 3 pairs x 2 technologies. |
 
-Examples in `datasets/`: `default.yaml`, `variantcomp_small.yaml`, `variantcomp_full.yaml`,
-`variantinterpretation_small.yaml`.
+Examples in `datasets/`: `default.yaml`; for workflow-nxf-somatic-variantcomp
+`variantcomp_test.yaml`, `variantcomp_test_full.yaml` (remote), `variantcomp_offline.yaml`,
+`variantcomp_small.yaml` (chr22 + BAM slices), `variantcomp_full.yaml`; for
+variantinterpretation `variantinterpretation_test.yaml`, `variantinterpretation_test_full.yaml`
+(remote), `variantinterpretation_offline.yaml`, `variantinterpretation_small.yaml`.
 
 ## Downloads, cache and checksums
 
@@ -234,7 +294,10 @@ samplesheet:
 params:                                    # params.yaml; a param with an empty variable is left out
   input: "{samplesheet}"
   fasta: "{reference}"
+params_remote:                             # replaces params for remote datasets; null removes one
+  recompress_vcf: true
 files: {}                                  # extra files: relative path -> template text
+files_remote: {}                           # the same for extra files (null: not written)
 ```
 
 Templates are Python format strings with these variables:
@@ -242,7 +305,7 @@ Templates are Python format strings with these variables:
 | Variables | Content |
 |---|---|
 | per row | `pair`, `center`, `replicate`, `technology` (WGS), `tech` (wgs), `library_type` (wgs / capture), `aligner`, `caller`, `vcf`, `tumor_bam`, `tumor_bai`, `normal_bam`, `normal_bai`, `tumor_id` (TUMOR), `normal_id` (NORMAL), `target_bed`; rows `bam`: `role`, `bam`, `bai` |
-| per dataset | `dataset`, `source` (seqc2 / hg008), `source_name` (SEQC2 / HG008), `dataset_dir`, `workdir`, `samplesheet`, `pairs`, `first_pair`, `all_bams` (true/false), `reference`, `reference_fai`, `target_bed_wes`, `truth_snv`, `truth_indel`, `truth_regions`, `gencode_gtf`, `giab_<name>` |
+| per dataset | `dataset`, `source` (seqc2 / hg008), `source_name` (SEQC2 / HG008), `dataset_dir`, `workdir`, `samplesheet`, `pairs`, `first_pair`, `all_bams` (true/false), `reference`, `reference_fai`, `target_bed_wes`, `truth_snv`, `truth_indel`, `truth_regions`, `gencode_gtf`, `giab_<name>`, `access` (local/remote), `contigs` (comma-separated: the records are, or for remote datasets should be, restricted to them) |
 | HG008 only | per row: `series`, `platform`, `build`, `tumor_sample`, `normal_sample`, `tumor_coverage`, `normal_coverage` (`tumor_bai` etc. are `.crai` for CRAMs); per dataset: `reference_gzi`, `truth_sv`, `truth_sv_regions`, `truth_sv_regions_clonal` |
 
 `accepts` can also restrict `sources: [seqc2]` or `[hg008]`. The shipped `variantcomp`
@@ -251,7 +314,14 @@ profile accepts only SEQC2 WGS/WES; `variantinterpretation` takes HG008 MuTect2 
 
 An empty variable gives `n/a` in a samplesheet column (configurable: `samplesheet.missing`),
 leaves a param out, and is an error in an extra file. Rendered params `true` / `false`
-become booleans. `seqc2 run` writes the workflow files, a params file with absolute paths
+become booleans.
+
+Next to `params.yaml`, `params.config` holds the same params as a Nextflow config, for `-c`
+or for `includeConfig` in a test profile of the workflow. Local files of the workflow folder
+are written as `"<config base>/<path>"`; the base is the absolute folder path, or the
+Nextflow expression given with `--config-base`, e.g. `'${projectDir}/assets/seqc2/test'` for
+files committed into a pipeline, or `"${params.pipelines_testdata_base_path}variantinterpretation"`
+for a dataset folder that is moved. `seqc2 run` writes the workflow files, a params file with absolute paths
 into the run folder and runs `nextflow run <pipeline> -r <revision> -profile <profile>
 -params-file ... --outdir <run>/results -resume`; further nextflow arguments follow `--`.
 

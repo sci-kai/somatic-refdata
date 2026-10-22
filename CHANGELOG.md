@@ -4,7 +4,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates follow
 ISO 8601 (`YYYY-MM-DD`).
 
-## Unreleased (0.1.0-dev)
+## Unreleased
+
+### `Added`
+
+- Remote datasets (`access: remote`): nothing is downloaded; samplesheets and params hold the URLs of the original SEQC2 files, the workflow reads them online. With `subset.contigs` a smaller online reference is used (`remote_references`: GRCh38 chr21 of nf-core/test-datasets, checked identical to GRCh38.d1.vd1); BAM slices are refused (AI-assisted, Claude Code)
+- `--technologies`, `--pairs`, `--centers`, `--replicates` for `plan`, `fetch`, `samplesheet`, `run` and `verify`: choose the samples without editing the config; `samplesheet` stops if the dataset folder was built with another selection
+- Workflow profiles: `params.config` (the params as Nextflow config) next to `params.yaml`, with `--config-base` for files committed into a pipeline; `params_remote` / `files_remote` for remote datasets; template variables `access` and `contigs` (also recorded in dataset.json)
+- Dataset configs for the test tiers of the two workflows: `*_test.yaml` and `*_test_full.yaml` (remote), `*_offline.yaml`
+- Profiles: `variantinterpretation` sets `recompress_vcf` for remote datasets; `variantcomp` switches VEP and the known-variant lists off for remote datasets
+
+## 0.1.0-dev
 
 ### `Added`
 
