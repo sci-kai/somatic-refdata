@@ -186,8 +186,9 @@ def test_remote_urls_params_remote_and_config_base(tmp_path):
         "S_IL_1,https://example.org/WES_IL_1.vcf.gz"
     )
     params = yaml.safe_load((workdir / "params.yaml").read_text())
+    # with config_base, files of the workflow folder are relative to it
     assert params == {
-        "input": str(workdir / "samplesheet.csv"),
+        "input": "samplesheet.csv",
         "fasta": "https://example.org/chr21.fa",
         "vep": False,
         "regions": "chr21",

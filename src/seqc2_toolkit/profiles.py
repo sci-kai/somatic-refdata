@@ -344,10 +344,17 @@ def write(profile, dataset_dir, workdir=None, config_base=None):
         # 'true' / 'false' become booleans (a string 'false' would be true in nextflow)
         params[key] = {"true": True, "false": False}.get(text, text)
     params_path = workdir / "params.yaml"
-    params_path.write_text(
+    header = (
         f"# Parameters of {profile['name']} for the {dataset_values['source_name']} dataset "
-        f"{facts['name']} (seqc2-toolkit)\n" + yaml.safe_dump(params, sort_keys=False)
+        f"{facts['name']} (seqc2-toolkit)\n"
     )
+    yaml_params = params
+    if config_base:
+        # files meant to be committed (e.g. into a pipeline): no path of this machine;
+        # files of the workflow folder are written relative to it
+        yaml_params = {k: local_relpath(v, workdir) or v for k, v in params.items()}
+        header += "# paths relative to this folder\n"
+    params_path.write_text(header + yaml.safe_dump(yaml_params, sort_keys=False))
     written.append(params_path)
     # extra files (e.g. a known-variant sheet); an empty variable is an error here
     files = dict(profile["files"])
@@ -383,6 +390,21 @@ def groovy_string(text):
     return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
+def local_relpath(value, workdir):
+    """Path of a local file relative to the workflow folder, or None (URL, other value).
+
+    A file is local if value is an existing path relative to the workflow folder
+    (paths: relative) or an absolute path below it.
+    """
+    workdir = Path(workdir).resolve()
+    if not isinstance(value, str) or is_url(value):
+        return None
+    if Path(value).is_absolute():
+        full = Path(value).resolve()
+        return os.path.relpath(full, workdir) if full.is_relative_to(workdir) else None
+    return value if (workdir / value).exists() else None
+
+
 def nextflow_params(params, workdir, config_base=None):
     """params as a Nextflow config block; files in the workflow folder start with config_base.
 
@@ -403,14 +425,7 @@ def nextflow_params(params, workdir, config_base=None):
             lines.append(f"    {key:<{width}} = {value}")
             continue
         value = str(value)
-        # path of a local file relative to the workflow folder, or None
-        rel = None
-        if not is_url(value):
-            if Path(value).is_absolute():
-                if Path(value).resolve().is_relative_to(workdir):
-                    rel = os.path.relpath(Path(value).resolve(), workdir)
-            elif (workdir / value).exists():
-                rel = value
+        rel = local_relpath(value, workdir)
         if rel is None:
             text = groovy_string(value)
         elif config_base:
