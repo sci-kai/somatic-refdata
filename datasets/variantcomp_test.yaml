@@ -1,12 +1,15 @@
 # Online smoke test of workflow-nxf-somatic-variantcomp (-profile test): WGS and WES of
 # IL_1 (one pseudo-sample, two technologies), MuTect2 VCFs read by the pipeline from the
 # SEQC2 server, GRCh38 chr21 FASTA from nf-core/test-datasets; the pipeline drops the
-# records of the other contigs. No BAMs, no annotation resources.
+# records of the other contigs. No BAMs, no target BED, no annotation resources.
 access: remote
 select:
   technologies: [WGS, WES]
   pairs: [IL_1]
 data:
+  # the remote target BED is named *.bed6.gz, which the pipeline's samplesheet doesn't
+  # accept: WES is compared in the whole reference (chr21 / genome) without a target BED
+  target_bed: false
   truth: v1.2.1
 subset:
   contigs: [chr21]

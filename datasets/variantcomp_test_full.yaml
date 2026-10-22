@@ -6,4 +6,7 @@ select:
   technologies: [WGS, WES]
   pairs: [IL_1]
 data:
+  # the remote target BED is named *.bed6.gz, which the pipeline's samplesheet doesn't
+  # accept: WES is compared in the whole reference (chr21 / genome) without a target BED
+  target_bed: false
   truth: v1.2.1
