@@ -42,6 +42,12 @@ params:
   giab_low_mappability: "{giab_low_mappability}"
   giab_all_difficult: "{giab_all_difficult}"
   known_variants: known_variants.csv
+params_remote:
+  # remote datasets: no BAMs, the GENCODE GTF is plain gzip (VEP needs it bgzipped and
+  # indexed): no annotation; the known-variant demo list is for chr22 (local datasets)
+  vep: false
+  vep_gtf: null
+  known_variants: null
 files:
   # SEQC2 truth set as external benchmark for every sample; a small 'required' demo list
   # (variants of chr22 found by WGS and WES of IL_1) for the first pair
@@ -54,3 +60,7 @@ files:
     chr22,50177152,C,T,PANX2,demo_1
     chr22,50243801,T,C,TUBGCP6,demo_2
     chr22,23164333,C,T,RAB36,demo_3
+files_remote:
+  # not used by remote datasets (known_variants is left out above)
+  known_variants.csv: null
+  known/required_demo.csv: null

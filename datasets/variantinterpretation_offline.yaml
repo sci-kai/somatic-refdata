@@ -1,0 +1,11 @@
+# Offline test of cio-abcd/variantinterpretation (-profile test_full_offline): downloaded
+# and prepared by 'seqc2 fetch' (md5-checked), then read locally (e.g. on an offline HPC).
+# Default: WES of IL_1, genome-wide. Choose more samples on the command line, e.g.
+#   seqc2 fetch datasets/variantinterpretation_offline.yaml --pairs IL_1,FD_1,NV_1
+#   seqc2 fetch datasets/variantinterpretation_offline.yaml --centers all --technologies WES,WGS
+# (the same options for 'seqc2 samplesheet').
+select:
+  technologies: [WES]
+  pairs: [IL_1]
+data:
+  truth: v1.2.1

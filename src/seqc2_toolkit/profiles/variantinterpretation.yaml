@@ -22,3 +22,7 @@ samplesheet:
 params:
   input: "{samplesheet}"
   fasta: "{reference}"
+params_remote:
+  # remote datasets: the SEQC2 VCFs are plain gzip; the pipeline recompresses them to BGZF
+  # before indexing (param of the pipeline since feat-seqc2-tests, default false)
+  recompress_vcf: true

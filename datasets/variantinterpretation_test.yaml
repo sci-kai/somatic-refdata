@@ -1,0 +1,13 @@
+# Online smoke test of cio-abcd/variantinterpretation (-profile test): nothing is
+# downloaded by the toolkit; the pipeline reads the MuTect2 VCF of WES IL_1 (19,520
+# records, 1 MB, plain gzip) from the SEQC2 server and the GRCh38 chr21 FASTA from
+# nf-core/test-datasets. The pipeline keeps only the records on chr21 (contigs).
+access: remote
+select:
+  technologies: [WES]
+  pairs: [IL_1]
+data:
+  target_bed: false
+  truth: false
+subset:
+  contigs: [chr21]

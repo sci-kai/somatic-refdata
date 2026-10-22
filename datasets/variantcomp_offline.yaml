@@ -1,0 +1,12 @@
+# Offline test of workflow-nxf-somatic-variantcomp (-profile test_full_offline): WGS + WES,
+# genome-wide, downloaded and prepared by 'seqc2 fetch'. Default: IL_1. More samples:
+#   seqc2 fetch datasets/variantcomp_offline.yaml --pairs IL_1,FD_1,NV_1
+#   seqc2 fetch datasets/variantcomp_offline.yaml --centers all     (first replicates)
+#   seqc2 fetch datasets/variantcomp_offline.yaml --centers all --replicates all
+# (NS was sequenced with WGS only: choose --technologies WGS or leave NS out.)
+select:
+  technologies: [WGS, WES]
+  pairs: [IL_1]
+data:
+  gencode: 46
+  giab: [homopolymer, tandem_repeat, segmental_duplication, low_mappability, all_difficult]
