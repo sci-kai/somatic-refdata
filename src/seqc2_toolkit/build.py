@@ -186,19 +186,27 @@ class Builder:
         url = f"{self.base}/{ref['fasta']}"
         if self.contigs:
             require_tools("samtools", "bgzip")
-            rel = f"reference/{ref['name']}_{'_'.join(self.contigs)}.fa.gz"
+            # plain FASTA (data.reference_plain) for tools that can't read bgzipped FASTA
+            plain_ref = self.config["data"].get("reference_plain", False)
+            rel = f"reference/{ref['name']}_{'_'.join(self.contigs)}.fa"
+            rel += "" if plain_ref else ".gz"
             recipe = {"source": url, "contigs": self.contigs}
+            # only a set option enters the recipe: datasets without it keep their recipe hash
+            if plain_ref:
+                recipe["plain"] = True
 
             def build(path):
-                plain = path.with_suffix("")
+                plain = path if plain_ref else path.with_suffix("")
                 with tempfile.TemporaryDirectory() as tmp, plain.open("w") as fh:
                     # samtools reads the remote .fai and only the needed blocks of the FASTA;
                     # it caches the remote index in the working directory (tmp)
                     run(["samtools", "faidx", url, *self.contigs], cwd=tmp, stdout=fh)
-                run(["bgzip", "-f", plain])
+                if not plain_ref:
+                    run(["bgzip", "-f", plain])
                 run(["samtools", "faidx", path])
 
-            return self.output(rel, recipe, build, [rel + ".fai", rel + ".gzi"], url)
+            companions = [rel + ".fai"] + ([] if plain_ref else [rel + ".gzi"])
+            return self.output(rel, recipe, build, companions, url)
         # whole FASTA (3.2 GB) and its index (+ .gzi of a bgzipped FASTA) from the cache
         rel = f"reference/{Path(ref['fasta']).name}"
         recipe = {"source": url}

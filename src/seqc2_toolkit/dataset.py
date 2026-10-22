@@ -18,6 +18,7 @@ A SEQC2 dataset config has three optional sections; everything left out takes th
     vcf: true             the somatic VCFs of the selection
     bam: false            alignments: false, true (every selected pair) or a list of pairs
     reference: true       GRCh38.d1.vd1 FASTA (+ .fai)
+    reference_plain: false  contig subsets as plain FASTA instead of bgzip (+ .gzi)
     target_bed: true      exome target BED (used for WES)
     truth: v1.2.1         SEQC2 somatic truth set (release), or false
     gencode: false        GENCODE basic GTF (release number, e.g. 46), or false
@@ -64,6 +65,7 @@ DEFAULTS = {
         "vcf": True,
         "bam": False,
         "reference": True,
+        "reference_plain": False,
         "target_bed": True,
         "truth": "v1.2.1",
         "gencode": False,

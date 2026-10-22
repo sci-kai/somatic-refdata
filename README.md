@@ -169,6 +169,7 @@ data:
   vcf: true               # the somatic VCFs of the selection
   bam: false              # false, true (every selected pair) or a list of pairs
   reference: true         # GRCh38.d1.vd1 FASTA + .fai (3.2 GB, or only subset.contigs)
+  reference_plain: false   # contig subsets as plain FASTA (default: bgzip + .gzi)
   target_bed: true        # exome target BED (when WES is selected)
   truth: v1.2.1           # SEQC2 truth set release, or false
   gencode: false          # GENCODE basic GTF release (e.g. 46), or false
