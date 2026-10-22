@@ -772,13 +772,44 @@ def check_remote(config):
         raise ConfigError("access: remote can't do this:\n  " + "\n  ".join(problems))
 
 
-def remote_facts(config, units, sources):
+def local_target_bed(cache, url, fai_url, contigs, root):
+    """Target BED of a remote dataset written into its folder: bed/<kit>.bed.gz (relative).
+
+    For workflows that need a target BED with a .bed/.bed.gz name (the remote file is a
+    lifted-over BED6 named *.bed6.gz): BED3 of the contigs of the reference (fai_url; only
+    subset.contigs if given), sorted in reference order, overlapping intervals merged;
+    gzip with mtime 0, so the same input gives the same file (stable checksums).
+    """
+    order = [ln.split("\t", 1)[0] for ln in cache.fetch(fai_url).read_text().splitlines() if ln]
+    rank = {c: i for i, c in enumerate(order) if not contigs or c in contigs}
+    intervals = []
+    with gzip.open(cache.fetch(url), "rt") as fh:
+        for line in fh:
+            if line.startswith(("#", "track", "browser")) or not line.strip():
+                continue
+            chrom, start, end = line.split("\t")[:3]
+            # only contigs of the reference (and of subset.contigs)
+            if chrom in rank:
+                intervals.append((rank[chrom], int(start), int(end), chrom))
+    intervals.sort()
+    rel = f"bed/{Path(url).name.replace('.liftover.to.hg38.bed6.gz', '_hg38.bed.gz')}"
+    path = Path(root) / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as out:
+        out.write("".join(f"{c}\t{s}\t{e}\n" for c, s, e in merge(intervals)).encode())
+    log.info("target BED written: %s (%d intervals before merging)", rel, len(intervals))
+    return rel
+
+
+def remote_facts(config, units, sources, cache=None, root=None):
     """dataset.json content of a remote dataset: every file is a URL on its server.
 
-    Nothing is downloaded or changed: the VCFs are the original files of the SEQC2 server
-    (plain gzip, no index, sample columns TUMOR and NORMAL, all contigs). subset.contigs
-    only chooses the reference (remote_reference) and is passed on as 'contigs': the
-    workflow has to restrict the records itself (e.g. bcftools view --targets).
+    Nothing is changed: the VCFs are the original files of the SEQC2 server (plain gzip,
+    no index, sample columns TUMOR and NORMAL, all contigs). subset.contigs only chooses
+    the reference (remote_reference) and is passed on as 'contigs': the workflow has to
+    restrict the records itself (e.g. bcftools view --targets). With data.target_bed:
+    local, the target BED is downloaded (cache) and written into the dataset folder root
+    (local_target_bed); everything else stays a URL.
     """
     check_remote(config)
     data = config["data"]
@@ -795,7 +826,15 @@ def remote_facts(config, units, sources):
         for technology in technologies:
             if technology in sources["target_bed"]:
                 # original BED6 (gzip) of the kit, lifted over to hg38: all contigs
-                targets[technology] = f"{sources['base_url']}/{sources['target_bed'][technology]}"
+                url = f"{sources['base_url']}/{sources['target_bed'][technology]}"
+                if data["target_bed"] == "local":
+                    if cache is None or root is None or not data["reference"]:
+                        raise ConfigError(
+                            "data.target_bed: local needs the reference (its contigs) and a "
+                            "dataset folder"
+                        )
+                    url = local_target_bed(cache, url, res["reference_fai"], contigs, root)
+                targets[technology] = url
                 res[f"target_bed_{technology.lower()}"] = targets[technology]
     facts["units"] = []
     for unit in units:

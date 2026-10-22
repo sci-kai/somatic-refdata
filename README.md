@@ -228,6 +228,10 @@ samplesheet and params is a URL that the workflow reads itself (Nextflow stages 
   sequence identical to GRCh38.d1.vd1). The VCFs still hold every contig: the workflow has
   to drop the other records (template variable `{contigs}`, e.g. `bcftools view --targets`).
 - Target BED, truth set, GENCODE GTF, GIAB files: the original files (URLs).
+  `data.target_bed: local` instead writes the WES target BED into the dataset folder (BED3
+  of the reference contigs, sorted, merged, gzip: `bed/<kit>_hg38.bed.gz`; chr21: 24 KB,
+  genome: 2.2 MB), for workflows that need a `.bed`/`.bed.gz` (the remote file is a BED6
+  named `*.bed6.gz`).
 - Not possible: BAM slices (`bam_windows`, `bam_subsample`); whole BAMs are possible
   but 10-160 GB each.
 

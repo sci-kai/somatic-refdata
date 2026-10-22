@@ -6,7 +6,8 @@ select:
   technologies: [WGS, WES]
   pairs: [IL_1]
 data:
-  # the remote target BED is named *.bed6.gz, which the pipeline's samplesheet doesn't
-  # accept: WES is compared in the whole reference (chr21 / genome) without a target BED
-  target_bed: false
+  # the WES target BED is written into the dataset folder (BED3, merged, gzip; the
+  # remote file is a BED6 named *.bed6.gz, which the pipeline doesn't accept): the only
+  # local file; VCFs and reference are read online
+  target_bed: local
   truth: v1.2.1

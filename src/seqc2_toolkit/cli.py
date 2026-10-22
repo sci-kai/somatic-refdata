@@ -99,7 +99,9 @@ def cmd_plan(args):
     print(dataset.describe(units) + "\n")
     if config["access"] == "remote":
         # nothing is downloaded: list the URLs the workflow reads
-        facts = build.remote_facts(config, units, catalog.builder_sources(config))
+        facts = build.remote_facts(
+            config, units, catalog.builder_sources(config), cache, outdir_of(config)
+        )
         print("access: remote (the workflow reads these files; nothing is downloaded)")
         if facts["contigs"]:
             print(f"the workflow should restrict the records to: {', '.join(facts['contigs'])}")
@@ -107,7 +109,9 @@ def cmd_plan(args):
         urls += [b for u in facts["units"] for b in u["bams"].values()]
         urls += sorted(set(facts["resources"].values()))
         for url in urls:
-            print(f"{human(net.head(url)[0]):>9}  {url}")
+            # a local file (data.target_bed: local) has no remote size
+            size = net.head(url)[0] if "://" in url else Path(outdir_of(config), url).stat().st_size
+            print(f"{human(size):>9}  {url}")
         return
     rows = build.plan(config, units, cache, catalog.builder_sources(config))
     width = max(len(r["item"]) for r in rows)
@@ -125,7 +129,9 @@ def cmd_fetch(args):
     units = dataset.select(config, records)
     if config["access"] == "remote":
         # remote: only dataset.json and README.md; the workflow reads the files online
-        facts = build.remote_facts(config, units, catalog.builder_sources(config))
+        facts = build.remote_facts(
+            config, units, catalog.builder_sources(config), cache, outdir_of(config)
+        )
         root = build.write_remote(outdir_of(config), facts)
         print(f"remote dataset ready (nothing downloaded): {root}")
         return
@@ -142,8 +148,9 @@ def write_profile(args, config):
     root = outdir_of(config)
     if config["access"] == "remote":
         # a remote dataset is cheap to describe: always from the current config
-        _, _, records = context(args, need_config=False)
-        facts = build.remote_facts(config, dataset.select(config, records), catalog.load_sources())
+        _, cache, records = context(args, need_config=False)
+        units = dataset.select(config, records)
+        facts = build.remote_facts(config, units, catalog.load_sources(), cache, root)
         build.write_remote(root, facts)
     elif not (root / "dataset.json").exists():
         raise dataset.ConfigError(f"{root}: no dataset.json; run 'seqc2 fetch {args.config}' first")

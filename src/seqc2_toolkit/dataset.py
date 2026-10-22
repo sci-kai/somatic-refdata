@@ -19,7 +19,8 @@ A SEQC2 dataset config has three optional sections; everything left out takes th
     bam: false            alignments: false, true (every selected pair) or a list of pairs
     reference: true       GRCh38.d1.vd1 FASTA (+ .fai)
     reference_plain: false  contig subsets as plain FASTA instead of bgzip (+ .gzi)
-    target_bed: true      exome target BED (used for WES)
+    target_bed: true      exome target BED (used for WES); local: for remote datasets,
+                          a BED3 written into the dataset folder (not the remote BED6)
     truth: v1.2.1         SEQC2 somatic truth set (release), or false
     gencode: false        GENCODE basic GTF (release number, e.g. 46), or false
     giab: []              GIAB stratifications (homopolymer, tandem_repeat, ...)
@@ -114,6 +115,11 @@ def load(path, overrides=None):
     for key, value in (overrides or {}).items():
         if value is not None:
             config[key] = str(Path(value).resolve()) if key in ("outdir", "cache") else value
+    if config["data"]["target_bed"] not in (True, False, "local"):
+        raise ConfigError(f"{path}: data.target_bed must be true, false or local")
+    if config["data"]["target_bed"] == "local" and config["access"] != "remote":
+        # a local dataset builds its target BED anyway
+        config["data"]["target_bed"] = True
     if config["access"] not in ACCESS:
         raise ConfigError(f"{path}: access must be one of {', '.join(ACCESS)}")
     # remote datasets (URLs instead of downloaded files) exist for SEQC2 only
