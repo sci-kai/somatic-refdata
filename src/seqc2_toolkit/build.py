@@ -466,7 +466,14 @@ class Builder:
         data = self.config["data"]
         rel = lambda p: str(Path(p).relative_to(self.root))  # noqa: E731
         order = self.contig_order()
-        facts = {"name": self.config["name"], "resources": {}, "units": []}
+        # contigs: the records of every file are restricted to them already (local build)
+        facts = {
+            "name": self.config["name"],
+            "access": "local",
+            "contigs": self.contigs,
+            "resources": {},
+            "units": [],
+        }
         res = facts["resources"]
         if data["reference"]:
             fasta = self.reference()
@@ -575,6 +582,7 @@ class Builder:
         """The config sections that shape the dataset (written to dataset.json, README)."""
         return {
             "source": self.config.get("source", "seqc2"),
+            "access": self.config.get("access", "local"),
             **{k: self.config[k] for k in ("select", "data", "subset")},
         }
 
@@ -688,3 +696,143 @@ def plan(config, units, cache, sources):
         cached = "-" if remote else cache.status(url, md5)
         result.append({"item": item, "url": url, "size": size, "how": how, "cached": cached})
     return result
+
+
+# remote datasets (access: remote) ------------------------------------------------------
+
+
+def remote_reference(sources, contigs):
+    """(fasta URL, fai URL, name) of the reference for a remote dataset.
+
+    Without subset.contigs: the SEQC2 GRCh38.d1.vd1 FASTA (3.2 GB, read whole by the
+    workflow). With contigs: a smaller reference of remote_references that holds exactly
+    these contigs; there is none for other contig sets (error with the choices).
+    """
+    if not contigs:
+        ref = sources["reference"]
+        base = sources["base_url"]
+        return f"{base}/{ref['fasta']}", f"{base}/{ref['fai']}", ref["name"]
+    for name, ref in sources.get("remote_references", {}).items():
+        if sorted(ref["contigs"]) == sorted(contigs):
+            return ref["fasta"], ref["fai"], name
+    choices = "; ".join(
+        f"{name}: {', '.join(ref['contigs'])}"
+        for name, ref in sources.get("remote_references", {}).items()
+    )
+    raise ConfigError(
+        f"subset.contigs {', '.join(contigs)}: no remote reference with exactly these contigs "
+        f"(available: {choices or 'none'}); use one of them, leave subset.contigs out "
+        "(whole SEQC2 reference, 3.2 GB) or access: local (the toolkit cuts the contigs)"
+    )
+
+
+def check_remote(config):
+    """Stop if a remote dataset asks for something that needs local processing."""
+    subset = config["subset"]
+    problems = []
+    if subset["bam_windows"] or subset["bam_subsample"]:
+        problems.append(
+            "subset.bam_windows / bam_subsample: BAM slices are cut by seqc2 fetch (access: local)"
+        )
+    if config["data"]["bam"]:
+        log.warning(
+            "data.bam with access: remote: the workflow downloads every BAM whole (10-160 GB each)"
+        )
+    if problems:
+        raise ConfigError("access: remote can't do this:\n  " + "\n  ".join(problems))
+
+
+def remote_facts(config, units, sources):
+    """dataset.json content of a remote dataset: every file is a URL on its server.
+
+    Nothing is downloaded or changed: the VCFs are the original files of the SEQC2 server
+    (plain gzip, no index, sample columns TUMOR and NORMAL, all contigs). subset.contigs
+    only chooses the reference (remote_reference) and is passed on as 'contigs': the
+    workflow has to restrict the records itself (e.g. bcftools view --targets).
+    """
+    check_remote(config)
+    data = config["data"]
+    contigs = as_list(config["subset"]["contigs"])
+    facts = {"name": config["name"], "access": "remote", "contigs": contigs, "resources": {}}
+    res = facts["resources"]
+    if data["reference"]:
+        fasta, fai, ref_name = remote_reference(sources, contigs)
+        res["reference"], res["reference_fai"] = fasta, fai
+        facts["reference_name"] = ref_name
+    technologies = sorted({u["technology"] for u in units})
+    targets = {}
+    if data["target_bed"]:
+        for technology in technologies:
+            if technology in sources["target_bed"]:
+                # original BED6 (gzip) of the kit, lifted over to hg38: all contigs
+                targets[technology] = f"{sources['base_url']}/{sources['target_bed'][technology]}"
+                res[f"target_bed_{technology.lower()}"] = targets[technology]
+    facts["units"] = []
+    for unit in units:
+        entry = {k: unit[k] for k in ("pair", "center", "replicate", "technology")}
+        entry["target_bed"] = targets.get(unit["technology"])
+        entry["vcfs"] = [
+            {"aligner": r["aligner"], "caller": r["caller"], "path": r["url"], "md5": r["md5"]}
+            for r in unit["vcfs"]
+        ]
+        entry["bams"] = {role: r["url"] for role, r in unit["bams"].items()}
+        facts["units"].append(entry)
+    if data["truth"]:
+        files = sources["truth"].get(data["truth"])
+        if files is None:
+            raise ConfigError(
+                f"data.truth: release {data['truth']} unknown; "
+                f"choose from {', '.join(sources['truth'])}"
+            )
+        res.update({f"truth_{k}": f"{sources['base_url']}/{v}" for k, v in files.items()})
+    if data["gencode"]:
+        # plain gzip, not tabix-indexed: only for workflows that read it whole
+        url = sources["annotation"]["gencode"]["url"].format(release=data["gencode"])
+        res["gencode_gtf"] = url
+    giab = sources["annotation"]["giab"]
+    for name in as_list(data["giab"]) or []:
+        if name not in giab["files"]:
+            raise ConfigError(f"data.giab: {name} unknown; choose from {', '.join(giab['files'])}")
+        res[f"giab_{name}"] = f"{giab['base_url']}/{giab['files'][name]}"
+    facts["vcf_samples"] = sources["vcf_samples"]
+    facts["caller_fields"] = sources["caller_fields"]
+    facts["config"] = {k: config[k] for k in ("access", "select", "data", "subset")}
+    facts["toolkit_version"] = __version__
+    return facts
+
+
+def write_remote(root, facts):
+    """Write dataset.json and README.md of a remote dataset into root; return root."""
+    root = Path(root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "dataset.json").write_text(json.dumps(facts, indent=1))
+    files = [v["path"] for u in facts["units"] for v in u["vcfs"]]
+    files += [p for u in facts["units"] for p in u["bams"].values()]
+    files += sorted(set(facts["resources"].values()))
+    lines = [
+        f"# SEQC2 dataset `{facts['name']}` (remote)",
+        "",
+        f"Created by seqc2-toolkit {__version__} on {datetime.now().date().isoformat()}."
+        " Nothing was downloaded: the workflow reads these files from their servers"
+        " (internet access needed). Do not edit by hand; change the dataset config and run"
+        " `seqc2 fetch` again.",
+        "",
+        "Contigs the workflow should restrict the records to: "
+        + (", ".join(facts["contigs"]) if facts["contigs"] else "all"),
+        "",
+        "## Settings",
+        "",
+        "```json",
+        json.dumps(facts["config"], indent=1),
+        "```",
+        "",
+        "## Files",
+        "",
+        *[f"- {url}" for url in files],
+        "",
+        "Cite the SEQC2 somatic reference data: Fang et al. 2021, *Nat Biotechnol* 39:1151"
+        " (doi:10.1038/s41587-021-00993-6); Xiao et al. 2021, *Nat Biotechnol* 39:1141"
+        " (doi:10.1038/s41587-021-00994-5).",
+    ]
+    (root / "README.md").write_text("\n".join(lines) + "\n")
+    return root

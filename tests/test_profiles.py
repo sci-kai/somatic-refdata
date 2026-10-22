@@ -76,7 +76,19 @@ def test_samplesheet_params_files(tmp_path):
     # gtf is left out (not in the dataset); 'true' is a boolean
     assert params == {"input": "samplesheet.csv", "fasta": "../reference/ref.fa.gz", "bams": True}
     assert (root / "wf" / "extra.txt").read_text() == "truth=../truth/snv.vcf.gz"
-    assert len(written) == 3
+    # params.config is written last: a param may name an extra file
+    assert [p.name for p in written] == [
+        "samplesheet.csv",
+        "params.yaml",
+        "extra.txt",
+        "params.config",
+    ]
+    config = (root / "wf" / "params.config").read_text()
+    # local files as absolute paths, booleans as Groovy booleans; the reference file
+    # doesn't exist in this test, so its relative value is written as it is
+    assert f"input = '{root / 'wf' / 'samplesheet.csv'}'" in config
+    assert "fasta = '../reference/ref.fa.gz'" in config
+    assert "bams  = true" in config
 
 
 def test_resolve_params_absolute(tmp_path):
@@ -121,3 +133,82 @@ def test_run_command(tmp_path):
     # a local pipeline folder has no revision
     cmd = profiles.run_command(prof, tmp_path / "p.yaml", tmp_path / "o", pipeline=str(tmp_path))
     assert "-r" not in cmd
+
+
+def make_remote_dataset(tmp_path):
+    """A remote dataset folder: URLs instead of paths."""
+    root = tmp_path / "remote"
+    root.mkdir()
+    facts = {
+        "name": "remote",
+        "access": "remote",
+        "contigs": ["chr21"],
+        "units": [
+            {
+                "pair": "IL_1",
+                "center": "IL",
+                "replicate": 1,
+                "technology": "WES",
+                "target_bed": None,
+                "vcfs": [
+                    {
+                        "aligner": "bwa",
+                        "caller": "muTect2",
+                        "path": "https://example.org/WES_IL_1.vcf.gz",
+                        "md5": "x",
+                    }
+                ],
+                "bams": {},
+            }
+        ],
+        "resources": {"reference": "https://example.org/chr21.fa"},
+        "vcf_samples": {"tumor": "TUMOR", "normal": "NORMAL"},
+    }
+    (root / "dataset.json").write_text(json.dumps(facts))
+    return root
+
+
+def test_remote_urls_params_remote_and_config_base(tmp_path):
+    root = make_remote_dataset(tmp_path)
+    prof = profile(
+        tmp_path,
+        "name: wf\npaths: relative\n"
+        "samplesheet:\n  columns:\n    sample: 'S_{pair}'\n    vcf: '{vcf}'\n"
+        "params:\n  input: '{samplesheet}'\n  fasta: '{reference}'\n  vep: true\n"
+        "  regions: '{contigs}'\n  bams: '{all_bams}'\n"
+        "params_remote:\n  vep: false\n  bams: null\n"
+        "files:\n  a.txt: 'a'\n  b.txt: 'b'\nfiles_remote:\n  b.txt: null\n",
+    )
+    workdir = tmp_path / "pipeline" / "assets" / "test"
+    profiles.write(prof, root, workdir, config_base="${projectDir}/assets/test")
+    # URLs are written as they are, also with paths: relative
+    assert (workdir / "samplesheet.csv").read_text().splitlines()[1] == (
+        "S_IL_1,https://example.org/WES_IL_1.vcf.gz"
+    )
+    params = yaml.safe_load((workdir / "params.yaml").read_text())
+    assert params == {
+        "input": str(workdir / "samplesheet.csv"),
+        "fasta": "https://example.org/chr21.fa",
+        "vep": False,
+        "regions": "chr21",
+    }
+    config = (workdir / "params.config").read_text().splitlines()
+    assert '    input   = "${projectDir}/assets/test/samplesheet.csv"' in config
+    assert "    fasta   = 'https://example.org/chr21.fa'" in config
+    assert "    vep     = false" in config
+    # files_remote: b.txt is not written for a remote dataset
+    assert (workdir / "a.txt").exists() and not (workdir / "b.txt").exists()
+    # no absolute path of this machine in a file meant to be committed
+    assert str(tmp_path) not in "\n".join(config)
+
+
+def test_nextflow_params_quoting(tmp_path):
+    (tmp_path / "a b$c.csv").write_text("")
+    text = profiles.nextflow_params(
+        {"x": "it's", "n": 3, "f": "a b$c.csv", "u": "s3://b/k"}, tmp_path, "${base}"
+    )
+    assert "x = 'it\\'s'" in text
+    assert "n = 3" in text
+    # only the base expression is interpolated
+    assert 'f = "${base}/a b\\$c.csv"' in text
+    assert "u = 's3://b/k'" in text

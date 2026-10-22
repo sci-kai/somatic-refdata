@@ -50,6 +50,8 @@ PAIR_NAMES = {"N-D": "T-ND", "N-P": "T-NP"}
 DEFAULTS = {
     "source": "hg008",
     "name": None,
+    # HG008 datasets are always built locally (remote access is implemented for SEQC2 only)
+    "access": "local",
     "outdir": None,
     "cache": None,
     "select": {

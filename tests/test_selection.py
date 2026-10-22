@@ -111,3 +111,24 @@ def test_command_line_paths_relative_to_working_directory(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     assert dataset.load(path)["outdir"] == str(tmp_path / "configs" / "from_config")
     assert dataset.load(path, {"outdir": "cli"})["outdir"] == str(tmp_path / "cli")
+
+
+def test_override_select(tmp_path):
+    cfg = config(tmp_path, "select:\n  pairs: [IL_1]\n")
+    dataset.override_select(cfg, technologies="WGS,WES", pairs="IL_2, NS_1")
+    assert cfg["select"]["technologies"] == ["WGS", "WES"]
+    assert cfg["select"]["pairs"] == ["IL_2", "NS_1"]
+    # centers / replicates replace the pairs of the config
+    cfg = config(tmp_path, "select:\n  pairs: [IL_1]\n")
+    dataset.override_select(cfg, centers="all", replicates="all")
+    assert cfg["select"]["pairs"] is None
+    units = dataset.select(cfg, records())
+    assert [u["pair"] for u in units] == ["IL_1", "IL_2", "NS_1"]
+    with pytest.raises(dataset.ConfigError, match="no value"):
+        dataset.override_select(cfg, pairs=" , ")
+
+
+def test_access_value(tmp_path):
+    assert config(tmp_path, "{}")["access"] == "local"
+    with pytest.raises(dataset.ConfigError, match="access must be"):
+        config(tmp_path, "access: online\n")

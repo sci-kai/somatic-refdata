@@ -15,12 +15,16 @@ Examples
   seqc2 plan datasets/default.yaml
   seqc2 plan datasets/hg008_small.yaml
   seqc2 fetch datasets/variantcomp_small.yaml --outdir data/small
+  seqc2 fetch datasets/variantinterpretation_offline.yaml --pairs IL_1,FD_1,NV_1
+  seqc2 samplesheet datasets/variantinterpretation_test.yaml --profile variantinterpretation \\
+      --workdir assets/seqc2/test --config-base '${projectDir}/assets/seqc2/test'
   seqc2 samplesheet datasets/variantcomp_small.yaml --profile variantcomp
   seqc2 run datasets/variantcomp_small.yaml --profile variantcomp \\
       --pipeline ../workflow-nxf-somatic-variantcomp --nf-profile conda
 """
 
 import argparse
+import json
 import logging
 import subprocess
 import sys
@@ -42,11 +46,21 @@ def human(size):
         size /= 1000
 
 
+def load_config(args):
+    """The dataset config with the command-line values (outdir, cache, access, selection)."""
+    config = dataset.load(
+        args.config, {"outdir": args.outdir, "cache": args.cache, "access": args.access}
+    )
+    return dataset.override_select(
+        config, args.technologies, args.pairs, args.centers, args.replicates
+    )
+
+
 def context(args, need_config=True):
     """(config or None, cache, catalog records) for a command."""
     config = None
     if need_config:
-        config = dataset.load(args.config, {"outdir": args.outdir, "cache": args.cache})
+        config = load_config(args)
     cache_dir = (config and config["cache"]) or args.cache or default_cache_dir()
     cache = Cache(cache_dir)
     source = config["source"] if config else getattr(args, "source", "seqc2")
@@ -83,6 +97,18 @@ def cmd_plan(args):
     units = dataset.select(config, records)
     print(f"Dataset {config['name']} -> {outdir_of(config)}\n")
     print(dataset.describe(units) + "\n")
+    if config["access"] == "remote":
+        # nothing is downloaded: list the URLs the workflow reads
+        facts = build.remote_facts(config, units, catalog.builder_sources(config))
+        print("access: remote (the workflow reads these files; nothing is downloaded)")
+        if facts["contigs"]:
+            print(f"the workflow should restrict the records to: {', '.join(facts['contigs'])}")
+        urls = [v["path"] for u in facts["units"] for v in u["vcfs"]]
+        urls += [b for u in facts["units"] for b in u["bams"].values()]
+        urls += sorted(set(facts["resources"].values()))
+        for url in urls:
+            print(f"{human(net.head(url)[0]):>9}  {url}")
+        return
     rows = build.plan(config, units, cache, catalog.builder_sources(config))
     width = max(len(r["item"]) for r in rows)
     todo = 0
@@ -97,6 +123,12 @@ def cmd_fetch(args):
     """Download what is missing and build the dataset folder."""
     config, cache, records = context(args)
     units = dataset.select(config, records)
+    if config["access"] == "remote":
+        # remote: only dataset.json and README.md; the workflow reads the files online
+        facts = build.remote_facts(config, units, catalog.builder_sources(config))
+        root = build.write_remote(outdir_of(config), facts)
+        print(f"remote dataset ready (nothing downloaded): {root}")
+        return
     builder = build.Builder(
         config, catalog.builder_sources(config), cache, outdir_of(config), args.verify
     )
@@ -108,9 +140,23 @@ def write_profile(args, config):
     """Write the workflow files of --profile for the dataset; return (profile, workdir)."""
     profile = profiles.load_profile(args.profile)
     root = outdir_of(config)
-    if not (root / "dataset.json").exists():
+    if config["access"] == "remote":
+        # a remote dataset is cheap to describe: always from the current config
+        _, _, records = context(args, need_config=False)
+        facts = build.remote_facts(config, dataset.select(config, records), catalog.load_sources())
+        build.write_remote(root, facts)
+    elif not (root / "dataset.json").exists():
         raise dataset.ConfigError(f"{root}: no dataset.json; run 'seqc2 fetch {args.config}' first")
-    written = profiles.write(profile, root, args.workdir)
+    else:
+        # the folder must hold the dataset of this config (same selection and subset)
+        built = json.loads((root / "dataset.json").read_text()).get("config", {})
+        wanted = {k: config[k] for k in ("select", "data", "subset")}
+        if {k: built.get(k) for k in wanted} != wanted:
+            raise dataset.ConfigError(
+                f"{root}: the dataset was built with another selection or subset than "
+                f"{args.config} with these options; run 'seqc2 fetch' with the same options first"
+            )
+    written = profiles.write(profile, root, args.workdir, args.config_base)
     for path in written:
         print(f"wrote {path}")
     return profile, written[0].parent
@@ -118,13 +164,12 @@ def write_profile(args, config):
 
 def cmd_samplesheet(args):
     """Write samplesheet, params and extra files of a profile."""
-    config = dataset.load(args.config, {"outdir": args.outdir, "cache": args.cache})
-    write_profile(args, config)
+    write_profile(args, load_config(args))
 
 
 def cmd_run(args):
     """Write the workflow files and run nextflow."""
-    config = dataset.load(args.config, {"outdir": args.outdir, "cache": args.cache})
+    config = load_config(args)
     profile, workdir = write_profile(args, config)
     rundir = Path(args.rundir or f"{config['name']}_{profile['name']}_run").resolve()
     params = profiles.resolve_params(workdir, rundir)
@@ -147,8 +192,11 @@ def cmd_run(args):
 
 def cmd_verify(args):
     """Recompute the md5 of every dataset file (manifest) and report mismatches."""
-    config = dataset.load(args.config, {"outdir": args.outdir, "cache": args.cache})
+    config = load_config(args)
     root = outdir_of(config)
+    if config["access"] == "remote":
+        print("remote dataset: no local files to verify")
+        return
     manifest = build.Manifest(root)
     bad = 0
     for rel, entry in sorted(manifest.entries.items()):
@@ -184,6 +232,16 @@ def parser():
     def with_config(p):
         p.add_argument("config", help="dataset config (YAML)")
         p.add_argument("--outdir", help="dataset folder (default: config outdir or ./<name>)")
+        p.add_argument(
+            "--access",
+            choices=dataset.ACCESS,
+            help="local: download and build; remote: the workflow reads the files online",
+        )
+        # choose the samples without editing the config (comma-separated, or 'all')
+        p.add_argument("--technologies", help="replaces select.technologies, e.g. WGS,WES")
+        p.add_argument("--pairs", help="replaces select.pairs, e.g. IL_1,FD_1 or all")
+        p.add_argument("--centers", help="replaces select.centers (clears pairs), e.g. all")
+        p.add_argument("--replicates", help="replaces select.replicates (clears pairs), e.g. all")
 
     p = sub.add_parser("catalog", help="what SEQC2 (or HG008) provides")
     p.add_argument(
@@ -213,6 +271,11 @@ def parser():
         )
         p.add_argument(
             "--workdir", help="folder of the workflow files (default: <dataset>/<profile>)"
+        )
+        p.add_argument(
+            "--config-base",
+            help="Nextflow expression for the workflow folder in params.config, e.g. "
+            "'${projectDir}/assets/seqc2/test' (default: its absolute path)",
         )
         p.set_defaults(func=func)
         if name == "run":

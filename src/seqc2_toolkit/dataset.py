@@ -3,6 +3,10 @@
 source: seqc2 (default; SEQC2 HCC1395/HCC1395BL, below) or hg008 (GIAB HG008, see hg008.py).
 A SEQC2 dataset config has three optional sections; everything left out takes the default:
 
+  access: local           local: download and build the dataset folder (seqc2 fetch);
+                          remote: no download, the workflow reads the files from the
+                          SEQC2 server (URLs; whole files only, see build.remote_facts)
+
   select:                 which tumor/normal pairs, technologies, aligners, callers
     technologies: [WGS]   WGS and/or WES
     centers: [IL]         sequencing centers, or 'all'
@@ -37,10 +41,12 @@ import yaml
 log = logging.getLogger("seqc2")
 
 SOURCE_NAMES = ("seqc2", "hg008")
+ACCESS = ("local", "remote")
 
 DEFAULTS = {
     "source": "seqc2",
     "name": None,
+    "access": "local",
     "outdir": None,
     "cache": None,
     "select": {
@@ -99,6 +105,14 @@ def load(path, overrides=None):
     for key, value in (overrides or {}).items():
         if value is not None:
             config[key] = str(Path(value).resolve()) if key in ("outdir", "cache") else value
+    if config["access"] not in ACCESS:
+        raise ConfigError(f"{path}: access must be one of {', '.join(ACCESS)}")
+    # remote datasets (URLs instead of downloaded files) exist for SEQC2 only
+    if config["access"] == "remote" and config["source"] != "seqc2":
+        raise ConfigError(
+            f"{path}: access 'remote' is only available for source seqc2 "
+            f"(source is {config['source']}); use access: local"
+        )
     # the dataset name defaults to the config file name
     config["name"] = config["name"] or path.stem
     config["config_file"] = str(path.resolve())
@@ -114,6 +128,35 @@ def defaults_of(source, where="config"):
 
         return hg008.DEFAULTS
     raise ConfigError(f"{where}: source {source} unknown; choose from {', '.join(SOURCE_NAMES)}")
+
+
+def override_select(config, technologies=None, pairs=None, centers=None, replicates=None):
+    """Replace select values of a config with command-line values (comma-separated or 'all').
+
+    Lets the user choose the samples of a dataset without editing its config, e.g.
+    --pairs IL_1,FD_1 or --centers all --replicates all. Giving centers or replicates
+    clears the pairs of the config (pairs would replace them). The changes are logged.
+    """
+    values = {
+        "technologies": technologies,
+        "pairs": pairs,
+        "centers": centers,
+        "replicates": replicates,
+    }
+    sel = config["select"]
+    if (centers or replicates) and not pairs and sel["pairs"]:
+        log.info("select.pairs %s of the config replaced by centers/replicates", sel["pairs"])
+        sel["pairs"] = None
+    for key, text in values.items():
+        if text is None:
+            continue
+        # 'all' stays a word; everything else becomes a list of the comma-separated items
+        new = "all" if text.strip() == "all" else [v.strip() for v in text.split(",") if v.strip()]
+        if not new:
+            raise ConfigError(f"--{key}: no value given (comma-separated list or 'all')")
+        log.info("select.%s: %s (command line; config: %s)", key, new, sel[key])
+        sel[key] = new
+    return config
 
 
 def merge(defaults, user, where):

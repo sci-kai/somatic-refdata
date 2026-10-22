@@ -21,6 +21,9 @@ A profile is a small YAML file (profiles/<workflow>.yaml, or any path):
   params:                                    # param: template (left out if empty)
     input: "{samplesheet}"
     fasta: "{reference}"
+  params_remote:                             # optional: replaces params of a remote dataset
+    callable_regions: false                  # (access: remote); null removes a param
+  files_remote: {}                           # the same for extra files (null: not written)
   files:                                     # extra files: relative path -> template
     known.csv: |
       ...
@@ -33,10 +36,15 @@ normal_coverage (bai: .crai of a CRAM).
 Dataset variables (also in rows): dataset, source (seqc2 / hg008), source_name
 (SEQC2 / HG008), dataset_dir, samplesheet, workdir, pairs, first_pair, all_bams
 (true/false: every pair has tumor and normal BAMs), reference, reference_fai,
-target_bed_wes, truth_snv, truth_indel, truth_regions, gencode_gtf, giab_<name>;
-HG008 only: reference_gzi, truth_sv, truth_sv_regions, truth_sv_regions_clonal.
-A variable without value is empty. Rendered params 'true' / 'false' are written as
-booleans. accepts may also restrict sources (seqc2, hg008).
+target_bed_wes, truth_snv, truth_indel, truth_regions, gencode_gtf, giab_<name>, access
+(local / remote), contigs (comma-separated contigs the records are, or for remote datasets
+should be, restricted to); HG008 only: reference_gzi, truth_sv, truth_sv_regions,
+truth_sv_regions_clonal. A variable without value is empty. Rendered params 'true' /
+'false' are written as booleans. accepts may also restrict sources (seqc2, hg008).
+
+Remote datasets (access: remote, SEQC2 only) hold URLs instead of paths; they are written
+as given. Next to params.yaml, params.config holds the same params as a Nextflow config
+(for -c or includeConfig); paths inside the workflow folder start with config_base there.
 """
 
 import csv
@@ -44,6 +52,7 @@ import io
 import json
 import logging
 import os
+import re
 import string
 from importlib import resources
 from pathlib import Path
@@ -72,7 +81,9 @@ PROFILE_DEFAULTS = {
         "columns": {},
     },
     "params": {},
+    "params_remote": {},
     "files": {},
+    "files_remote": {},
 }
 LIBRARY_TYPE = {"WGS": "wgs", "WES": "capture"}
 
@@ -246,10 +257,18 @@ def check(profile, facts):
         )
 
 
-def write(profile, dataset_dir, workdir=None):
-    """Write samplesheet, params.yaml and extra files of a profile; return their paths.
+def is_url(value):
+    """True for a URL (scheme://...), e.g. a file of a remote dataset."""
+    return isinstance(value, str) and re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", value) is not None
+
+
+def write(profile, dataset_dir, workdir=None, config_base=None):
+    """Write samplesheet, params.yaml, params.config and extra files; return their paths.
 
     workdir: folder of the workflow files (default: <dataset>/<profile name>/).
+    config_base: Nextflow expression for the workflow folder in params.config, e.g.
+    '${projectDir}/assets/seqc2/test' when the files are committed into a pipeline
+    (default: the absolute path of the workflow folder).
     """
     dataset_dir = Path(dataset_dir).resolve()
     facts = json.loads((dataset_dir / "dataset.json").read_text())
@@ -263,6 +282,9 @@ def write(profile, dataset_dir, workdir=None):
         """A dataset path as written into the workflow files (absolute or relative)."""
         if not rel:
             return None
+        # files of a remote dataset stay URLs
+        if is_url(rel):
+            return rel
         full = dataset_dir / rel
         if profile["paths"] == "relative":
             return os.path.relpath(full, workdir)
@@ -287,6 +309,8 @@ def write(profile, dataset_dir, workdir=None):
         "all_bams": str(
             bool(facts["units"]) and all(len(u["bams"]) == 2 for u in facts["units"])
         ).lower(),
+        "access": facts.get("access", "local"),
+        "contigs": ",".join(facts.get("contigs") or []),
         **{k: path(v) for k, v in facts["resources"].items()},
     }
     # samplesheet: one row per unit of the chosen kind
@@ -302,8 +326,15 @@ def write(profile, dataset_dir, workdir=None):
     written = [sheet_path]
     # params: a param with an empty variable is left out (e.g. no gencode_gtf in the dataset)
     params = {}
-    for key, template in profile["params"].items():
-        if isinstance(template, (bool, int, float)):
+    templates = dict(profile["params"])
+    # a remote dataset may need other params (e.g. no BAM-based features); null removes one
+    if dataset_values["access"] == "remote":
+        templates.update(profile["params_remote"])
+    for key, template in templates.items():
+        if template is None:
+            log.info("param %s left out: null in params_remote", key)
+            continue
+        if isinstance(template, bool | int | float):
             params[key] = template
             continue
         text, empty = render(template, dataset_values)
@@ -319,7 +350,13 @@ def write(profile, dataset_dir, workdir=None):
     )
     written.append(params_path)
     # extra files (e.g. a known-variant sheet); an empty variable is an error here
-    for rel, template in profile["files"].items():
+    files = dict(profile["files"])
+    if dataset_values["access"] == "remote":
+        files.update(profile["files_remote"])
+    for rel, template in files.items():
+        if template is None:
+            log.info("file %s not written: null in files_remote", rel)
+            continue
         text, empty = render(template, dataset_values)
         if empty:
             raise ConfigError(
@@ -330,7 +367,61 @@ def write(profile, dataset_dir, workdir=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
         written.append(target)
+    # params as Nextflow config, after the extra files (a param may name one of them)
+    config_path = workdir / "params.config"
+    config_path.write_text(
+        f"// Parameters of {profile['name']} for the SEQC2 dataset {facts['name']} "
+        "(seqc2-toolkit; do not edit, regenerate with seqc2 samplesheet)\n"
+        + nextflow_params(params, workdir, config_base)
+    )
+    written.append(config_path)
     return written
+
+
+def groovy_string(text):
+    """A single-quoted Groovy string literal (no interpolation)."""
+    return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def nextflow_params(params, workdir, config_base=None):
+    """params as a Nextflow config block; files in the workflow folder start with config_base.
+
+    A string value is a local file if it is a path relative to the workflow folder that
+    exists (paths: relative) or an absolute path below the workflow folder. With
+    config_base (a Nextflow expression such as ${projectDir}/assets/x) such a value becomes
+    "<config_base>/<relative path>", else its absolute path. URLs and other values are
+    written as they are.
+    """
+    workdir = Path(workdir).resolve()
+    lines = ["params {"]
+    width = max((len(k) for k in params), default=0)
+    for key, value in params.items():
+        if isinstance(value, bool):
+            lines.append(f"    {key:<{width}} = {'true' if value else 'false'}")
+            continue
+        if isinstance(value, int | float):
+            lines.append(f"    {key:<{width}} = {value}")
+            continue
+        value = str(value)
+        # path of a local file relative to the workflow folder, or None
+        rel = None
+        if not is_url(value):
+            if Path(value).is_absolute():
+                if Path(value).resolve().is_relative_to(workdir):
+                    rel = os.path.relpath(Path(value).resolve(), workdir)
+            elif (workdir / value).exists():
+                rel = value
+        if rel is None:
+            text = groovy_string(value)
+        elif config_base:
+            # interpolated Groovy string: only the base expression is evaluated
+            escaped = rel.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+            text = f'"{config_base}/{escaped}"'
+        else:
+            text = groovy_string(str((workdir / rel).resolve()))
+        lines.append(f"    {key:<{width}} = {text}")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
 
 
 def resolve_params(workdir, rundir):

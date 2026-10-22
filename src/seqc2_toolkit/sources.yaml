@@ -36,6 +36,18 @@ reference:
   fasta: "technical/reference_genome/GRCh38/GRCh38.d1.vd1.fa"
   fai: "technical/reference_genome/GRCh38/GRCh38.d1.vd1.fa.fai"
 
+# Smaller GRCh38 references online, for remote datasets (access: remote) restricted to some
+# contigs (subset.contigs): the SEQC2 FASTA can only be read whole (3.2 GB). Each entry
+# holds exactly the listed contigs, with the same names and sequence as GRCh38.d1.vd1
+# (GRCh38 primary assembly; checked 2026-10-22: same length in the .fai, identical
+# sequence in three windows of chr21).
+remote_references:
+  # full chr21 of GRCh38 (46.7 Mb, 47 MB plain FASTA), nf-core/test-datasets (MIT license)
+  nfcore_chr21:
+    contigs: [chr21]
+    fasta: "https://raw.githubusercontent.com/nf-core/test-datasets/modules/data/genomics/homo_sapiens/genome/chr21/sequence/genome.fasta"
+    fai: "https://raw.githubusercontent.com/nf-core/test-datasets/modules/data/genomics/homo_sapiens/genome/chr21/sequence/genome.fasta.fai"
+
 # exome capture kit of all SEQC2 WES libraries (Agilent SureSelect v6 + UTR, hg38 liftover)
 target_bed:
   WES: "technical/reference_genome/Exome_Target_bed/S07604624_Covered_human_all_v6_plus_UTR.liftover.to.hg38.bed6.gz"
