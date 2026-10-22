@@ -150,8 +150,9 @@ def write_profile(args, config):
     else:
         # the folder must hold the dataset of this config (same selection and subset)
         built = json.loads((root / "dataset.json").read_text()).get("config", {})
-        wanted = {k: config[k] for k in ("select", "data", "subset")}
-        if {k: built.get(k) for k in wanted} != wanted:
+        wanted = {k: config[k] for k in ("select", "data", "subset", "vcf")}
+        # datasets of toolkit versions without a section were built with its defaults
+        if {k: built.get(k, dataset.DEFAULTS[k]) for k in wanted} != wanted:
             raise dataset.ConfigError(
                 f"{root}: the dataset was built with another selection or subset than "
                 f"{args.config} with these options; run 'seqc2 fetch' with the same options first"

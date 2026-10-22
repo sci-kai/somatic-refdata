@@ -180,6 +180,9 @@ subset:
   bam_targets: true       # BAMs: within the windows only the WES targets + padding
   bam_padding: 100
   bam_subsample: null     # fraction of read pairs (fixed seed 42)
+vcf:                      # optional changes of the VCFs (local datasets only)
+  sample_order: null      # sample columns in this order, e.g. [NORMAL, TUMOR]
+  format_dp: false        # add FORMAT/DP = sum(FORMAT/AD) where a record has none
 name: null                # default: the config file name
 outdir: null              # default: ./<name>; relative to the config file
 cache: null               # default: $SEQC2_CACHE or ~/.cache/seqc2
@@ -190,6 +193,11 @@ called with MuTect2; VCF, reference and truth set, genome-wide.
 
 Unknown keys, unknown values (e.g. a misspelled caller) and combinations that SEQC2
 doesn't provide (e.g. NS pairs with WES) stop with an error that names the allowed values.
+
+`vcf` is for workflows that expect a sample order (e.g. filters that index the samples by
+position) or a read depth per sample: the SEQC2 MuTect2 (GATK 3.8) records have no
+FORMAT/DP. Records with FORMAT/DP are kept; the header documents the change
+(`##seqc2_toolkit_vcf=...`).
 
 ### Choosing the samples on the command line
 

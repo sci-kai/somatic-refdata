@@ -28,6 +28,9 @@ A SEQC2 dataset config has three optional sections; everything left out takes th
     bam_targets: true     BAMs: within the windows, only the WES targets (+ padding)
     bam_padding: 100      bp around the targets
     bam_subsample: null   fraction of read pairs to keep (fixed seed 42)
+  vcf:                    optional changes of the VCFs (local datasets; see vcfprep.py)
+    sample_order: null    sample columns in this order, e.g. [NORMAL, TUMOR]
+    format_dp: false      add FORMAT/DP = sum(FORMAT/AD) to records without FORMAT/DP
 
 Default (empty config): WGS of pair IL_1 (Illumina center, replicate 1), bwa + MuTect2
 VCF, reference and truth set; genome-wide.
@@ -72,6 +75,10 @@ DEFAULTS = {
         "bam_targets": True,
         "bam_padding": 100,
         "bam_subsample": None,
+    },
+    "vcf": {
+        "sample_order": None,
+        "format_dp": False,
     },
 }
 

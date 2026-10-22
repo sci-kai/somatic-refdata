@@ -28,7 +28,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from . import __version__, net
+from . import __version__, net, vcfprep
 from .cache import file_state, md5sum
 from .dataset import ConfigError, as_list
 
@@ -240,13 +240,29 @@ class Builder:
     # VCFs ------------------------------------------------------------------------
 
     def vcf(self, record, rel):
-        """Somatic VCF: bgzipped (some SEQC2 VCFs are plain gzip), contig subset, indexed."""
-        require_tools("bcftools", "tabix")
+        """Somatic VCF: bgzipped (some SEQC2 VCFs are plain gzip), contig subset, indexed.
+
+        With the vcf section of the config (sample_order, format_dp) the records are
+        changed afterwards (vcfprep.py).
+        """
+        require_tools("bcftools", "tabix", "bgzip")
         recipe = {"source": record["url"], "md5": record["md5"], "contigs": self.contigs}
+        changes = {k: v for k, v in self.config["vcf"].items() if v}
+        # only a set option enters the recipe: datasets without it keep their recipe hash
+        if changes:
+            recipe["vcf"] = changes
 
         def build(path):
             src = self.cache.fetch(record["url"], record["md5"], self.verify)
             subset_vcf(src, path, self.contigs)
+            if changes:
+                # plain text next to the output, bgzipped and indexed again in place
+                plain = path.with_suffix("")
+                vcfprep.transform_file(
+                    path, plain, changes.get("sample_order"), changes.get("format_dp", False)
+                )
+                run(["bgzip", "-f", plain])
+                run(["tabix", "-f", "-p", "vcf", path])
 
         return self.output(rel, recipe, build, [rel + ".tbi"], record["url"])
 
@@ -584,6 +600,8 @@ class Builder:
             "source": self.config.get("source", "seqc2"),
             "access": self.config.get("access", "local"),
             **{k: self.config[k] for k in ("select", "data", "subset")},
+            # the vcf section (sample order, FORMAT/DP) exists for SEQC2 configs only
+            **({"vcf": self.config["vcf"]} if "vcf" in self.config else {}),
         }
 
 
@@ -734,6 +752,10 @@ def check_remote(config):
         problems.append(
             "subset.bam_windows / bam_subsample: BAM slices are cut by seqc2 fetch (access: local)"
         )
+    if any(config["vcf"].values()):
+        problems.append(
+            "vcf.sample_order / vcf.format_dp: the VCFs are changed by seqc2 fetch (access: local)"
+        )
     if config["data"]["bam"]:
         log.warning(
             "data.bam with access: remote: the workflow downloads every BAM whole (10-160 GB each)"
@@ -796,7 +818,7 @@ def remote_facts(config, units, sources):
         res[f"giab_{name}"] = f"{giab['base_url']}/{giab['files'][name]}"
     facts["vcf_samples"] = sources["vcf_samples"]
     facts["caller_fields"] = sources["caller_fields"]
-    facts["config"] = {k: config[k] for k in ("access", "select", "data", "subset")}
+    facts["config"] = {k: config[k] for k in ("access", "select", "data", "subset", "vcf")}
     facts["toolkit_version"] = __version__
     return facts
 
