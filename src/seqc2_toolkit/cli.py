@@ -142,6 +142,19 @@ def cmd_fetch(args):
     print(f"dataset ready: {builder.root}")
 
 
+def with_defaults(built, key):
+    """Section key of a built dataset (dataset.json config), completed with the defaults.
+
+    Datasets of older toolkit versions lack sections or keys added later (e.g.
+    data.reference_plain); they were built with the default values.
+    """
+    default = dataset.DEFAULTS[key]
+    value = built.get(key)
+    if isinstance(default, dict):
+        return {**default, **(value or {})}
+    return default if value is None else value
+
+
 def write_profile(args, config):
     """Write the workflow files of --profile for the dataset; return (profile, workdir)."""
     profile = profiles.load_profile(args.profile)
@@ -150,7 +163,7 @@ def write_profile(args, config):
         # a remote dataset is cheap to describe: always from the current config
         _, cache, records = context(args, need_config=False)
         units = dataset.select(config, records)
-        facts = build.remote_facts(config, units, catalog.load_sources(), cache, root)
+        facts = build.remote_facts(config, units, catalog.builder_sources(config), cache, root)
         build.write_remote(root, facts)
     elif not (root / "dataset.json").exists():
         raise dataset.ConfigError(f"{root}: no dataset.json; run 'seqc2 fetch {args.config}' first")
@@ -158,8 +171,8 @@ def write_profile(args, config):
         # the folder must hold the dataset of this config (same selection and subset)
         built = json.loads((root / "dataset.json").read_text()).get("config", {})
         wanted = {k: config[k] for k in ("select", "data", "subset", "vcf")}
-        # datasets of toolkit versions without a section were built with its defaults
-        if {k: built.get(k, dataset.DEFAULTS[k]) for k in wanted} != wanted:
+        # datasets of toolkit versions without a section or key were built with its defaults
+        if {k: with_defaults(built, k) for k in wanted} != wanted:
             raise dataset.ConfigError(
                 f"{root}: the dataset was built with another selection or subset than "
                 f"{args.config} with these options; run 'seqc2 fetch' with the same options first"
