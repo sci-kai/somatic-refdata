@@ -16,9 +16,9 @@ samplesheet:
   file: samplesheet.csv
   rows: vcf
   columns:
-    sample: "SEQC2_{pair}_{tech}_{aligner}_{caller}"
+    sample: "{source_name}_{pair}_{tech}_{aligner}_{caller}"
     vcf: "{vcf}"
-    group: "SEQC2_{pair}"
+    group: "{source_name}_{pair}"
 params:
   input: "{samplesheet}"
   fasta: "{reference}"

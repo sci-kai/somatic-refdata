@@ -35,6 +35,13 @@ from .dataset import ConfigError, as_list
 log = logging.getLogger("seqc2")
 
 MANIFEST = "seqc2_manifest.json"
+# unit fields of HG008 datasets copied into dataset.json (SEQC2 units don't have them)
+UNIT_EXTRAS = ("series", "platform", "aligner", "build", "library_type", "samples", "coverage")
+SEQC2_CITATION = (
+    "Cite the SEQC2 somatic reference data: Fang et al. 2021, *Nat Biotechnol* 39:1151"
+    " (doi:10.1038/s41587-021-00993-6); Xiao et al. 2021, *Nat Biotechnol* 39:1141"
+    " (doi:10.1038/s41587-021-00994-5)."
+)
 
 
 def run(cmd, cwd=None, stdout=None):
@@ -192,15 +199,18 @@ class Builder:
                 run(["samtools", "faidx", path])
 
             return self.output(rel, recipe, build, [rel + ".fai", rel + ".gzi"], url)
-        # whole FASTA (3.2 GB) and its index from the cache
+        # whole FASTA (3.2 GB) and its index (+ .gzi of a bgzipped FASTA) from the cache
         rel = f"reference/{Path(ref['fasta']).name}"
         recipe = {"source": url}
+        companions = [rel + ".fai"] + ([rel + ".gzi"] if ref.get("gzi") else [])
 
         def build(path):
             link(self.cache.fetch(url), path)
             link(self.cache.fetch(f"{self.base}/{ref['fai']}"), Path(str(path) + ".fai"))
+            if ref.get("gzi"):
+                link(self.cache.fetch(f"{self.base}/{ref['gzi']}"), Path(str(path) + ".gzi"))
 
-        return self.output(rel, recipe, build, [rel + ".fai"], url)
+        return self.output(rel, recipe, build, companions, url)
 
     # regions ---------------------------------------------------------------------
 
@@ -270,17 +280,25 @@ class Builder:
         recipe = {"regions": text}
         return self.output(rel, recipe, lambda path: path.write_text(text))
 
-    def bam(self, record, index, rel, regions):
-        """Alignment: a slice of the remote BAM (regions) or the whole BAM from the cache."""
+    def bam(self, record, index, name, regions):
+        """Alignment: a slice of the remote BAM/CRAM (regions, written as BAM) or the whole
+        BAM/CRAM from the cache. name: dataset path without extension (bam/<name>).
+
+        CRAMs are decoded with the reference of the source (remote FASTA, read by blocks).
+        """
+        cram = record.get("format") == "cram"
+        ref_url = f"{self.base}/{self.sources['reference']['fasta']}"
         recipe = {"source": record["url"], "md5": record["md5"]}
         if regions is not None:
             require_tools("samtools")
+            rel, index_ext = f"{name}.bam", ".bai"
             recipe["regions"] = md5sum(regions)
             recipe["subsample"] = self.subset["bam_subsample"]
 
             def build(path):
                 fraction = self.subset["bam_subsample"]
                 subsample = ["--subsample", fraction, "--subsample-seed", 42] if fraction else []
+                reference = ["-T", ref_url] if cram else []
                 with tempfile.TemporaryDirectory() as tmp:
                     # -M: multi-region iterator (each read once); -X: index given explicitly
                     # (SEQC2 names it .bai, not .bam.bai); samtools caches it in cwd (tmp)
@@ -293,6 +311,7 @@ class Builder:
                             "-L",
                             regions,
                             *subsample,
+                            *reference,
                             "-o",
                             path,
                             "-X",
@@ -304,52 +323,75 @@ class Builder:
                 run(["samtools", "index", path])
 
         else:
+            rel, index_ext = (f"{name}.cram", ".crai") if cram else (f"{name}.bam", ".bai")
 
             def build(path):
                 link(self.cache.fetch(record["url"], record["md5"], self.verify), path)
                 link(
                     self.cache.fetch(index["url"], index["md5"], self.verify),
-                    Path(str(path) + ".bai"),
+                    Path(str(path) + index_ext),
                 )
 
-        return self.output(rel, recipe, build, [rel + ".bai"], record["url"])
+        return self.output(rel, recipe, build, [rel + index_ext], record["url"])
 
     # truth and annotation --------------------------------------------------------
 
-    def truth(self, release):
-        """SEQC2 somatic truth set: SNV and indel VCFs (subset, indexed) and regions."""
-        files = self.sources["truth"].get(release)
+    def truth(self, release, kind="truth"):
+        """Truth set (benchmark) files: VCFs (subset, indexed) and region BEDs (subset).
+
+        kind: truth (SEQC2 / HG008 small variants) or truth_sv (HG008 SVs). An entry of
+        the release is a path (SEQC2) or {path, md5_list, md5_key, types} (HG008: md5 from
+        the benchmark's list; types: snps / indels keeps only these from a combined VCF).
+        """
+        files = self.sources[kind].get(release)
         if files is None:
             raise ConfigError(
-                f"data.truth: release {release} unknown; "
-                f"choose from {', '.join(self.sources['truth'])}"
+                f"data.{kind}: release {release} unknown; "
+                f"choose from {', '.join(self.sources[kind])}"
             )
+        lists = {}
         result = {}
-        for key in ("snv", "indel"):
-            url = f"{self.base}/{files[key]}"
-            rel = f"truth/{Path(url).name}"
+        for key, entry in files.items():
+            entry = {"path": entry} if isinstance(entry, str) else entry
+            url = f"{self.base}/{entry['path']}"
+            expected = None
+            if entry.get("md5_list"):
+                list_url = f"{self.base}/{entry['md5_list']}"
+                if list_url not in lists:
+                    lists[list_url] = parse_md5_text(self.cache.fetch(list_url).read_text())
+                expected = lists[list_url].get(entry["md5_key"])
+                if expected is None:
+                    raise RuntimeError(f"{entry['md5_key']} is not in {list_url}")
+            name = Path(url).name
+            types = entry.get("types")
+            if types:
+                name = name.replace(".vcf.gz", f"_{types}.vcf.gz")
+            rel = f"{kind}/{name}"
+            # md5 / types only when set: SEQC2 recipes (and their outputs) stay unchanged
             recipe = {"source": url, "contigs": self.contigs}
+            recipe.update({k: v for k, v in (("md5", expected), ("types", types)) if v})
+            if name.endswith(".vcf.gz"):
 
-            def build(path, url=url):
-                require_tools("bcftools", "tabix")
-                subset_vcf(self.cache.fetch(url), path, self.contigs)
+                def build(path, url=url, expected=expected, types=types):
+                    require_tools("bcftools", "tabix")
+                    src = self.cache.fetch(url, expected, self.verify)
+                    subset_vcf(src, path, self.contigs, types)
 
-            result[key] = self.output(rel, recipe, build, [rel + ".tbi"], url)
-        url = f"{self.base}/{files['regions']}"
-        rel = f"truth/{Path(url).name}"
+                result[key] = self.output(rel, recipe, build, [rel + ".tbi"], url)
+            else:
 
-        def build_regions(path):
-            src = self.cache.fetch(url)
-            lines = src.read_text().splitlines(keepends=True)
-            path.write_text(
-                "".join(
-                    ln for ln in lines if not self.contigs or ln.split("\t", 1)[0] in self.contigs
-                )
-            )
+                def build(path, url=url, expected=expected):
+                    src = self.cache.fetch(url, expected, self.verify)
+                    lines = src.read_text().splitlines(keepends=True)
+                    path.write_text(
+                        "".join(
+                            ln
+                            for ln in lines
+                            if not self.contigs or ln.split("\t", 1)[0] in self.contigs
+                        )
+                    )
 
-        result["regions"] = self.output(
-            rel, {"source": url, "contigs": self.contigs}, build_regions, source=url
-        )
+                result[key] = self.output(rel, recipe, build, source=url)
         return result
 
     def gencode(self, release, order):
@@ -430,9 +472,11 @@ class Builder:
             fasta = self.reference()
             res["reference"] = rel(fasta)
             res["reference_fai"] = rel(fasta) + ".fai"
+            if Path(str(fasta) + ".gzi").exists():
+                res["reference_gzi"] = rel(fasta) + ".gzi"
         technologies = sorted({u["technology"] for u in units})
         targets = {}
-        if data["target_bed"]:
+        if data.get("target_bed"):
             for technology in technologies:
                 if technology in self.sources["target_bed"]:
                     targets[technology] = self.target_bed(technology, order)
@@ -443,6 +487,8 @@ class Builder:
         for unit in units:
             tech = unit["technology"].lower()
             entry = {k: unit[k] for k in ("pair", "center", "replicate", "technology")}
+            # HG008 units: series, platform, aligner, build, library type, samples, coverage
+            entry.update({k: unit[k] for k in UNIT_EXTRAS if k in unit})
             entry["target_bed"] = (
                 rel(targets[unit["technology"]]) if unit["technology"] in targets else None
             )
@@ -452,26 +498,41 @@ class Builder:
                     record,
                     f"vcf/{unit['pair']}_{tech}.{record['aligner']}.{record['caller']}.vcf.gz",
                 )
-                entry["vcfs"].append(
-                    {"aligner": record["aligner"], "caller": record["caller"], "path": rel(out)}
-                )
+                vcf_entry = {
+                    "aligner": record["aligner"],
+                    "caller": record["caller"],
+                    "path": rel(out),
+                }
+                # sample columns of this VCF (HG008: differ per caller; SEQC2: dataset-wide)
+                if record.get("samples"):
+                    vcf_entry["tumor_id"] = record["samples"]["tumor"]
+                    vcf_entry["normal_id"] = record["samples"]["normal"]
+                entry["vcfs"].append(vcf_entry)
             entry["bams"] = {}
             for role, record in unit["bams"].items():
-                out = self.bam(
-                    record, unit["bais"][role], f"bam/{unit['pair']}_{tech}_{role}.bam", regions
-                )
+                name = unit.get("bam_names", {}).get(role, f"{unit['pair']}_{tech}_{role}")
+                out = self.bam(record, unit["bais"][role], f"bam/{name}", regions)
                 entry["bams"][role] = rel(out)
             facts["units"].append(entry)
         if data["truth"]:
             res.update({f"truth_{k}": rel(v) for k, v in self.truth(data["truth"]).items()})
+        if data.get("truth_sv"):
+            res.update(
+                {
+                    f"truth_sv_{k}".replace("truth_sv_vcf", "truth_sv"): rel(v)
+                    for k, v in self.truth(data["truth_sv"], "truth_sv").items()
+                }
+            )
         if data["gencode"]:
             res["gencode_gtf"] = rel(self.gencode(data["gencode"], order))
         if data["giab"]:
             res.update({f"giab_{k}": rel(v) for k, v in self.giab(as_list(data["giab"])).items()})
         self.manifest.prune()
+        facts["source"] = self.config.get("source", "seqc2")
+        facts["source_name"] = self.sources.get("name", "SEQC2")
         facts["vcf_samples"] = self.sources["vcf_samples"]
         facts["caller_fields"] = self.sources["caller_fields"]
-        facts["config"] = {k: self.config[k] for k in ("select", "data", "subset")}
+        facts["config"] = self.settings()
         facts["toolkit_version"] = __version__
         (self.root / "dataset.json").write_text(json.dumps(facts, indent=1))
         self.write_provenance()
@@ -486,9 +547,9 @@ class Builder:
         sources = sorted(
             {(r.split("/")[0], e["source"]) for r, e in entries.items() if e["source"]}
         )
-        config = json.dumps({k: self.config[k] for k in ("select", "data", "subset")}, indent=1)
+        config = json.dumps(self.settings(), indent=1)
         lines = [
-            f"# SEQC2 dataset `{self.config['name']}`",
+            f"# {self.sources.get('name', 'SEQC2')} dataset `{self.config['name']}`",
             "",
             "Created by [seqc2-toolkit](https://github.com/core-unit-bioinformatics/seqc2-toolkit)"
             f" {__version__} on {datetime.now().date().isoformat()}. Do not edit by hand;"
@@ -506,11 +567,16 @@ class Builder:
             "|---|---|",
             *[f"| `{folder}/` | {url} |" for folder, url in sources],
             "",
-            "Cite the SEQC2 somatic reference data: Fang et al. 2021, *Nat Biotechnol* 39:1151"
-            " (doi:10.1038/s41587-021-00993-6); Xiao et al. 2021, *Nat Biotechnol* 39:1141"
-            " (doi:10.1038/s41587-021-00994-5).",
+            self.sources.get("citation", SEQC2_CITATION),
         ]
         (self.root / "README.md").write_text("\n".join(lines) + "\n")
+
+    def settings(self):
+        """The config sections that shape the dataset (written to dataset.json, README)."""
+        return {
+            "source": self.config.get("source", "seqc2"),
+            **{k: self.config[k] for k in ("select", "data", "subset")},
+        }
 
 
 def merge(intervals):
@@ -524,16 +590,29 @@ def merge(intervals):
     return merged
 
 
-def subset_vcf(src, dest, contigs):
-    """bgzipped, indexed copy of a VCF, restricted to contigs (all if None).
+def subset_vcf(src, dest, contigs, types=None):
+    """bgzipped, indexed copy of a VCF, restricted to contigs (all if None) and variant
+    types (bcftools -v: snps, indels; all if None).
 
     Streams with -t (targets), not -r: some SEQC2 VCFs are plain gzip without index.
     """
     cmd = ["bcftools", "view", "--no-version", "-Oz", "-o", dest]
     if contigs:
         cmd += ["-t", ",".join(contigs)]
+    if types:
+        cmd += ["-v", types]
     run([*cmd, src])
     run(["tabix", "-f", "-p", "vcf", dest])
+
+
+def parse_md5_text(text):
+    """{relative path: md5} of an md5 list ('<md5>  <path>'; './x', '/x', 'x' the same)."""
+    result = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            result[parts[1].removeprefix("./").lstrip("/")] = parts[0]
+    return result
 
 
 def plan(config, units, cache, sources):
@@ -551,7 +630,7 @@ def plan(config, units, cache, sources):
         rows.append(
             ("reference FASTA", url, None, "remote read (contigs)" if contigs else "download")
         )
-    if data["target_bed"] and any(u["technology"] in sources["target_bed"] for u in units):
+    if data.get("target_bed") and any(u["technology"] in sources["target_bed"] for u in units):
         for technology in sorted({u["technology"] for u in units} & set(sources["target_bed"])):
             rows.append(
                 (
@@ -578,9 +657,17 @@ def plan(config, units, cache, sources):
             if not subset["bam_windows"]:
                 index = unit["bais"][role]
                 rows.append((f"{label} BAM index {role}", index["url"], index["md5"], "download"))
-    if data["truth"] and data["truth"] in sources["truth"]:
-        for key, rel in sources["truth"][data["truth"]].items():
-            rows.append((f"truth {data['truth']} {key}", f"{base}/{rel}", None, "download"))
+    for kind in ("truth", "truth_sv"):
+        release = data.get(kind)
+        if not release or release not in sources.get(kind, {}):
+            continue
+        seen = set()
+        for key, entry in sources[kind][release].items():
+            path = entry if isinstance(entry, str) else entry["path"]
+            if path in seen:
+                continue  # HG008: SNVs and indels come from one VCF
+            seen.add(path)
+            rows.append((f"{kind} {release} {key}", f"{base}/{path}", None, "download"))
     if data["gencode"]:
         url = sources["annotation"]["gencode"]["url"].format(release=data["gencode"])
         rows.append((f"GENCODE {data['gencode']} GTF", url, None, "download"))
@@ -590,8 +677,12 @@ def plan(config, units, cache, sources):
             rows.append(
                 (f"GIAB {name}", f"{giab['base_url']}/{giab['files'][name]}", None, "download")
             )
-    result = []
+    result, seen = [], set()
     for item, url, md5, how in rows:
+        # HG008: the tumor alignment is shared by the pairs T-ND and T-NP
+        if url in seen:
+            continue
+        seen.add(url)
         remote = how != "download"
         size = None if remote else net.head(url)[0]
         cached = "-" if remote else cache.status(url, md5)

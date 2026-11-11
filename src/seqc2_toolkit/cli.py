@@ -1,6 +1,7 @@
 """Command line: seqc2 <command> ...
 
-  catalog      what SEQC2 provides (technologies, pairs, aligners, callers, BAMs)
+  catalog      what SEQC2 provides (technologies, pairs, aligners, callers, BAMs);
+               --source hg008: GIAB HG008 series, caller VCFs, benchmarks
   plan         what a dataset config selects: files, sizes, what is cached already
   fetch        download (only what is missing) and build the dataset folder
   samplesheet  write the samplesheet, params and extra files of a workflow profile
@@ -10,7 +11,9 @@
 
 Examples
   seqc2 catalog
-  seqc2 plan datasets/wgs_il_1.yaml
+  seqc2 catalog --source hg008
+  seqc2 plan datasets/default.yaml
+  seqc2 plan datasets/hg008_small.yaml
   seqc2 fetch datasets/variantcomp_small.yaml --outdir data/small
   seqc2 samplesheet datasets/variantcomp_small.yaml --profile variantcomp
   seqc2 run datasets/variantcomp_small.yaml --profile variantcomp \\
@@ -46,7 +49,8 @@ def context(args, need_config=True):
         config = dataset.load(args.config, {"outdir": args.outdir, "cache": args.cache})
     cache_dir = (config and config["cache"]) or args.cache or default_cache_dir()
     cache = Cache(cache_dir)
-    records = catalog.build(cache, refresh=getattr(args, "refresh", False))
+    source = config["source"] if config else getattr(args, "source", "seqc2")
+    records = catalog.build(cache, refresh=getattr(args, "refresh", False), source=source)
     return config, cache, records
 
 
@@ -60,10 +64,17 @@ def cmd_catalog(args):
     _, _, records = context(args, need_config=False)
     if args.files:
         for r in records:
-            extra = r.get("caller") or r.get("role")
-            print("\t".join([r["kind"], r["technology"], r["pair"], r["aligner"], extra, r["url"]]))
+            if args.source == "hg008":
+                # kind, series, sample (alignments) or caller (VCFs), build, coverage, url
+                what = r.get("sample") or r.get("caller")
+                cov = f"{r['coverage']}x" if r.get("coverage") else "-"
+                fields = [r["kind"], r["series"], what, r["build"], cov, r["url"]]
+            else:
+                extra = r.get("caller") or r.get("role")
+                fields = [r["kind"], r["technology"], r["pair"], r["aligner"], extra, r["url"]]
+            print("\t".join(fields))
     else:
-        print(catalog.summary(records))
+        print(catalog.summary(records, args.source))
 
 
 def cmd_plan(args):
@@ -72,7 +83,7 @@ def cmd_plan(args):
     units = dataset.select(config, records)
     print(f"Dataset {config['name']} -> {outdir_of(config)}\n")
     print(dataset.describe(units) + "\n")
-    rows = build.plan(config, units, cache, catalog.load_sources())
+    rows = build.plan(config, units, cache, catalog.builder_sources(config))
     width = max(len(r["item"]) for r in rows)
     todo = 0
     for r in rows:
@@ -86,7 +97,9 @@ def cmd_fetch(args):
     """Download what is missing and build the dataset folder."""
     config, cache, records = context(args)
     units = dataset.select(config, records)
-    builder = build.Builder(config, catalog.load_sources(), cache, outdir_of(config), args.verify)
+    builder = build.Builder(
+        config, catalog.builder_sources(config), cache, outdir_of(config), args.verify
+    )
     builder.build(units)
     print(f"dataset ready: {builder.root}")
 
@@ -172,7 +185,13 @@ def parser():
         p.add_argument("config", help="dataset config (YAML)")
         p.add_argument("--outdir", help="dataset folder (default: config outdir or ./<name>)")
 
-    p = sub.add_parser("catalog", help="what SEQC2 provides")
+    p = sub.add_parser("catalog", help="what SEQC2 (or HG008) provides")
+    p.add_argument(
+        "--source",
+        choices=dataset.SOURCE_NAMES,
+        default="seqc2",
+        help="reference data: seqc2 (HCC1395, default) or hg008 (GIAB HG008)",
+    )
     p.add_argument("--refresh", action="store_true", help="fetch the server's md5 lists again")
     p.add_argument("--files", action="store_true", help="list every file")
     p.set_defaults(func=cmd_catalog)

@@ -27,12 +27,16 @@ A profile is a small YAML file (profiles/<workflow>.yaml, or any path):
 
 Templates are Python format strings. Row variables: pair, center, replicate, technology,
 tech (lower case), library_type (wgs / capture), aligner, caller, vcf, tumor_bam,
-tumor_bai, normal_bam, normal_bai, tumor_id, normal_id, target_bed, role, bam, bai.
-Dataset variables (also in rows): dataset, dataset_dir, samplesheet, workdir, pairs,
-first_pair, all_bams (true/false: every pair has tumor and normal BAMs), reference,
-reference_fai, target_bed_wes, truth_snv, truth_indel,
-truth_regions, gencode_gtf, giab_<name>. A variable without value is empty. Rendered
-params 'true' / 'false' are written as booleans.
+tumor_bai, normal_bam, normal_bai, tumor_id, normal_id, target_bed, role, bam, bai;
+HG008 only: series, platform, build, tumor_sample, normal_sample, tumor_coverage,
+normal_coverage (bai: .crai of a CRAM).
+Dataset variables (also in rows): dataset, source (seqc2 / hg008), source_name
+(SEQC2 / HG008), dataset_dir, samplesheet, workdir, pairs, first_pair, all_bams
+(true/false: every pair has tumor and normal BAMs), reference, reference_fai,
+target_bed_wes, truth_snv, truth_indel, truth_regions, gencode_gtf, giab_<name>;
+HG008 only: reference_gzi, truth_sv, truth_sv_regions, truth_sv_regions_clonal.
+A variable without value is empty. Rendered params 'true' / 'false' are written as
+booleans. accepts may also restrict sources (seqc2, hg008).
 """
 
 import csv
@@ -123,31 +127,54 @@ def render(template, values):
     return text, values.empty
 
 
+def index_of(alignment):
+    """Index path of a dataset alignment (.bam.bai or .cram.crai), None without one."""
+    if not alignment:
+        return None
+    return alignment + (".crai" if alignment.endswith(".cram") else ".bai")
+
+
+def vcf_samples(vcf, tumor_id, normal_id):
+    """tumor_id / normal_id of a VCF: its own sample columns (HG008) or the dataset's."""
+    if "tumor_id" in vcf:
+        return {"tumor_id": vcf["tumor_id"], "normal_id": vcf.get("normal_id")}
+    return {"tumor_id": tumor_id, "normal_id": normal_id}
+
+
 def rows(facts, unit_kind, path):
     """Row variables: one dict per VCF, pair x technology, or alignment of the dataset."""
     tumor_id, normal_id = facts["vcf_samples"]["tumor"], facts["vcf_samples"]["normal"]
     result = []
     for unit in facts["units"]:
+        samples, coverage = unit.get("samples") or {}, unit.get("coverage") or {}
         base = {
             "pair": unit["pair"],
             "center": unit["center"],
             "replicate": unit["replicate"],
             "technology": unit["technology"],
             "tech": unit["technology"].lower(),
-            "library_type": LIBRARY_TYPE[unit["technology"]],
+            "library_type": unit.get("library_type") or LIBRARY_TYPE[unit["technology"]],
+            "series": unit.get("series"),
+            "platform": unit.get("platform"),
+            "build": unit.get("build"),
+            "tumor_sample": samples.get("T"),
+            "normal_sample": samples.get("N"),
+            "tumor_coverage": coverage.get("T"),
+            "normal_coverage": coverage.get("N"),
             "target_bed": path(unit["target_bed"]),
             "tumor_id": tumor_id,
             "normal_id": normal_id,
             "tumor_bam": path(unit["bams"].get("T")),
-            "tumor_bai": path(unit["bams"].get("T") and unit["bams"]["T"] + ".bai"),
+            "tumor_bai": path(index_of(unit["bams"].get("T"))),
             "normal_bam": path(unit["bams"].get("N")),
-            "normal_bai": path(unit["bams"].get("N") and unit["bams"]["N"] + ".bai"),
+            "normal_bai": path(index_of(unit["bams"].get("N"))),
         }
         if unit_kind == "vcf":
             for vcf in unit["vcfs"]:
                 result.append(
                     {
                         **base,
+                        **vcf_samples(vcf, tumor_id, normal_id),
                         "aligner": vcf["aligner"],
                         "caller": vcf["caller"],
                         "vcf": path(vcf["path"]),
@@ -158,7 +185,8 @@ def rows(facts, unit_kind, path):
             result.append(
                 {
                     **base,
-                    "aligner": first.get("aligner"),
+                    **vcf_samples(first, tumor_id, normal_id),
+                    "aligner": first.get("aligner") or unit.get("aligner"),
                     "caller": first.get("caller"),
                     "vcf": path(first.get("path")),
                 }
@@ -169,9 +197,9 @@ def rows(facts, unit_kind, path):
                     {
                         **base,
                         "role": role,
-                        "aligner": "bwa",
+                        "aligner": unit.get("aligner", "bwa"),
                         "bam": path(bam),
-                        "bai": path(bam + ".bai"),
+                        "bai": path(index_of(bam)),
                     }
                 )
     return result
@@ -181,17 +209,18 @@ def check(profile, facts):
     """Stop if the dataset doesn't fit the profile (accepts, requires)."""
     problems = []
     for field, allowed in profile["accepts"].items():
-        if field not in ("technologies", "callers", "aligners"):
+        if field not in ("sources", "technologies", "callers", "aligners"):
             raise ConfigError(
                 f"profile {profile['name']}: accepts.{field} unknown "
-                "(technologies, callers, aligners)"
+                "(sources, technologies, callers, aligners)"
             )
         key = field.removesuffix("s").replace("technologie", "technology")
-        values = (
-            {u["technology"] for u in facts["units"]}
-            if key == "technology"
-            else {v[key] for u in facts["units"] for v in u["vcfs"]}
-        )
+        if key == "source":
+            values = {facts.get("source", "seqc2")}
+        elif key == "technology":
+            values = {u["technology"] for u in facts["units"]}
+        else:
+            values = {v[key] for u in facts["units"] for v in u["vcfs"]}
         bad = sorted(values - set(allowed))
         if bad:
             problems.append(
@@ -242,6 +271,9 @@ def write(profile, dataset_dir, workdir=None):
     pairs = [u["pair"] for u in facts["units"]]
     dataset_values = {
         "dataset": facts["name"],
+        # seqc2 / hg008, and the name used in sample names (SEQC2 / HG008)
+        "source": facts.get("source", "seqc2"),
+        "source_name": facts.get("source_name", "SEQC2"),
         "dataset_dir": str(dataset_dir),
         "workdir": str(workdir),
         "samplesheet": (
@@ -282,8 +314,8 @@ def write(profile, dataset_dir, workdir=None):
         params[key] = {"true": True, "false": False}.get(text, text)
     params_path = workdir / "params.yaml"
     params_path.write_text(
-        f"# Parameters of {profile['name']} for the SEQC2 dataset {facts['name']} (seqc2-toolkit)\n"
-        + yaml.safe_dump(params, sort_keys=False)
+        f"# Parameters of {profile['name']} for the {dataset_values['source_name']} dataset "
+        f"{facts['name']} (seqc2-toolkit)\n" + yaml.safe_dump(params, sort_keys=False)
     )
     written.append(params_path)
     # extra files (e.g. a known-variant sheet); an empty variable is an error here

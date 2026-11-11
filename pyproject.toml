@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-seqc2_toolkit = ["sources.yaml", "profiles/*.yaml"]
+seqc2_toolkit = ["sources.yaml", "sources_hg008.yaml", "profiles/*.yaml"]
 
 [tool.black]
 line-length = 100

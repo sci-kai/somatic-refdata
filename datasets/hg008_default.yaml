@@ -1,0 +1,4 @@
+# GIAB HG008 with every default: tumor HG008-T vs duodenal normal HG008-N-D, NYGC Illumina
+# WGS, NYGC MuTect2 VCF, GRCh38 (GIABv3) reference and the small-variant draft benchmark
+# v0.4 (regions: all), genome-wide.
+source: hg008

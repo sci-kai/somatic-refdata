@@ -29,9 +29,24 @@ from . import net
 log = logging.getLogger("seqc2")
 
 
-def load_sources():
-    """The server description (sources.yaml shipped with the package)."""
-    return yaml.safe_load(resources.files("seqc2_toolkit").joinpath("sources.yaml").read_text())
+SOURCES = {"seqc2": "sources.yaml", "hg008": "sources_hg008.yaml"}
+
+
+def load_sources(source="seqc2"):
+    """The server description of a source (YAML file shipped with the package)."""
+    if source not in SOURCES:
+        raise ValueError(f"unknown source {source}; choose from {', '.join(SOURCES)}")
+    text = resources.files("seqc2_toolkit").joinpath(SOURCES[source]).read_text()
+    return yaml.safe_load(text)
+
+
+def builder_sources(config):
+    """The server description as build.Builder and build.plan read it, for one config."""
+    if config.get("source", "seqc2") == "hg008":
+        from . import hg008
+
+        return hg008.builder_sources(config)
+    return load_sources()
 
 
 def md5_list(cache, url, refresh=False):
@@ -82,8 +97,12 @@ def parse_md5_list(lines, kind, pattern, folder, base_url):
     return records
 
 
-def build(cache, refresh=False):
-    """All catalog records (VCFs, BAMs, BAM indices) of the paired WGS/WES series."""
+def build(cache, refresh=False, source="seqc2"):
+    """All catalog records of a source (SEQC2: VCFs, BAMs, BAM indices of WGS/WES)."""
+    if source == "hg008":
+        from . import hg008
+
+        return hg008.build_catalog(cache, refresh)
     sources = load_sources()
     base = sources["base_url"]
     records = []
@@ -93,8 +112,12 @@ def build(cache, refresh=False):
     return records
 
 
-def summary(records):
+def summary(records, source="seqc2"):
     """Text overview of the catalog: what exists per technology."""
+    if source == "hg008":
+        from . import hg008
+
+        return hg008.summary(records)
     lines = []
     for technology in sorted({r["technology"] for r in records}):
         tech = [r for r in records if r["technology"] == technology]

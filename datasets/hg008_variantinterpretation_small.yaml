@@ -1,0 +1,10 @@
+# HG008 input for cio-abcd/variantinterpretation (profile variantinterpretation): NYGC
+# MuTect2 VCF of HG008-T vs HG008-N-D on chr22, GRCh38 reference, GENCODE GTF.
+source: hg008
+select:
+  series: [illumina-nygc]
+  callers: [muTect2]
+data:
+  gencode: 46
+subset:
+  contigs: [chr22]

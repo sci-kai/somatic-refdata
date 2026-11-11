@@ -1,0 +1,19 @@
+# Small multi-technology HG008 test dataset (chr22, BAM slices read remotely): short reads
+# (Illumina, Ultima CRAM -> BAM), PacBio HiFi and ONT ultra-long (normal from the
+# Northeastern ONT series), caller VCFs of Illumina (MuTect2) and HiFi (DeepSomatic), small
+# variant and SV draft benchmarks, GIAB difficult regions.
+source: hg008
+select:
+  series: [illumina-nygc, hifi-bcm, ont-ul-ucsc, ultima]
+  normals: [N-D]
+  build: GRCh38
+  callers: [muTect2, deepsomatic]
+data:
+  bam: true
+  truth: v0.4
+  truth_sv: v0.6
+  giab: [all_difficult]
+subset:
+  contigs: [chr22]
+  bam_windows: ["chr22:23180000-23280000"]
+  bam_subsample: 0.5

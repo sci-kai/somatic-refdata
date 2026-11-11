@@ -1,6 +1,7 @@
-"""Dataset config (YAML) and the selection of SEQC2 files it describes.
+"""Dataset config (YAML) and the selection of reference data files it describes.
 
-A dataset config has three optional sections; everything left out takes the default:
+source: seqc2 (default; SEQC2 HCC1395/HCC1395BL, below) or hg008 (GIAB HG008, see hg008.py).
+A SEQC2 dataset config has three optional sections; everything left out takes the default:
 
   select:                 which tumor/normal pairs, technologies, aligners, callers
     technologies: [WGS]   WGS and/or WES
@@ -35,7 +36,10 @@ import yaml
 
 log = logging.getLogger("seqc2")
 
+SOURCE_NAMES = ("seqc2", "hg008")
+
 DEFAULTS = {
+    "source": "seqc2",
     "name": None,
     "outdir": None,
     "cache": None,
@@ -86,7 +90,7 @@ def load(path, overrides=None):
     user = yaml.safe_load(path.read_text()) or {}
     if not isinstance(user, dict):
         raise ConfigError(f"{path}: expected a mapping with the sections select, data, subset")
-    config = merge(DEFAULTS, user, str(path))
+    config = merge(defaults_of(user.get("source", "seqc2"), str(path)), user, str(path))
     # paths in the config file are relative to its folder
     for key in ("outdir", "cache"):
         if config[key] is not None:
@@ -99,6 +103,17 @@ def load(path, overrides=None):
     config["name"] = config["name"] or path.stem
     config["config_file"] = str(path.resolve())
     return config
+
+
+def defaults_of(source, where="config"):
+    """The config defaults of a source: seqc2 (HCC1395) or hg008 (GIAB HG008)."""
+    if source == "seqc2":
+        return DEFAULTS
+    if source == "hg008":
+        from . import hg008
+
+        return hg008.DEFAULTS
+    raise ConfigError(f"{where}: source {source} unknown; choose from {', '.join(SOURCE_NAMES)}")
 
 
 def merge(defaults, user, where):
@@ -148,7 +163,12 @@ def select(config, records):
     Every unit is a dict: pair, center, replicate, technology, vcfs (list of catalog
     records, one per aligner x caller), bams ({'T': record, 'N': record} or {}),
     bais (same for the indices). Missing files of a requested combination are an error.
+    HG008 configs (source: hg008) are selected by hg008.select.
     """
+    if config.get("source", "seqc2") == "hg008":
+        from . import hg008
+
+        return hg008.select(config, records)
     sel, data = config["select"], config["data"]
     vcfs = [r for r in records if r["kind"] == "vcf"]
     technologies = choose("technologies", sel["technologies"], {r["technology"] for r in records})

@@ -1,0 +1,215 @@
+# Where the GIAB cancer reference HG008 is, and how its files are named.
+# HG008-T: pancreatic ductal adenocarcinoma cell line (batch 0823p23, passage 23);
+# HG008-N-D / HG008-N-P: normal duodenal / pancreatic tissue of the same donor.
+# "Development and extensive sequencing of a broadly-consented Genome in a Bottle matched
+# tumor-normal pair for somatic benchmarks", Sci Data (doi:10.1038/s41597-025-05438-2).
+# README: data_somatic/HG008/README_HG008.md. All paths are relative to base_url.
+#
+# Only series aligned to the GIAB mapping references (GRCh38-GIABv3, GRCh37 hs37d5) are
+# listed: their alignments, caller VCFs and benchmarks share one reference per build.
+# Not listed: CHM13 alignments (two different CHM13 FASTAs, not on the GIAB server), series
+# aligned to other references (Ultima ppmSeq, BCM DRAGEN 2025, Hartwig/Roche Axelios,
+# Dovetail), Hi-C, Bionano, single-cell (Bioskryb), other and superseded passages, NIST
+# clones and FASTQs.
+
+name: HG008
+base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab"
+data_folder: "data_somatic/HG008/Liss_lab"
+citation: >-
+  Cite the GIAB HG008 data: "Development and extensive sequencing of a broadly-consented
+  Genome in a Bottle matched tumor-normal pair for somatic benchmarks", *Sci Data*
+  (doi:10.1038/s41597-025-05438-2). Benchmarks: see the README of each draft benchmark.
+
+samples: {T: HG008-T, N-D: HG008-N-D, N-P: HG008-N-P}
+tumor: T
+normals: [N-D, N-P]
+
+# alignment files of a series: HG008-<sample>_..._<build token>_...<coverage>x....(bam|cram)
+# (index: file name + .bai / .crai); files without a build token are unaligned reads
+alignment_pattern: '^HG008-(?P<sample>T|N-D|N-P)_(?P<rest>.+)\.(?P<format>bam|cram)$'
+build_tokens:
+  GRCh38: '(^|_)GRCh38[-_]GIABv3(_|$)'
+  GRCh37: '(^|_)GRCh37(_|$)'
+coverage_pattern: '_(?P<coverage>\d+)[xX](_|$)'
+
+# Sequencing series: one folder (and library) of one platform. The id is the "technology"
+# of a dataset unit. normal_series: the normals of this series come from another one
+# (e.g. ONT tumor and normals were sequenced by different centers).
+series:
+  illumina-bcm:
+    folder: BCM_Illumina-WGS_20240313
+    md5: checksum.md5
+    platform: Illumina NovaSeq 6000, PCR-free 2x150
+    center: BCM
+    aligner: bwa-mem
+  illumina-nygc:
+    folder: NYGC_Illumina-WGS_20231023
+    md5: checksums.md5
+    platform: Illumina NovaSeq 6000, PCR-free 2x150
+    center: NYGC
+    aligner: bwa-mem
+  element-2401:
+    folder: Element_AVITI_20240118
+    md5: checksums.md5
+    platform: Element AVITI, standard insert
+    center: Element
+    aligner: bwa-mem
+  element-2406:
+    folder: Element_AVITI_20240626
+    md5: checksum.md5
+    match: Element-StdInsert
+    platform: Element AVITI, standard insert
+    center: Element
+    aligner: bwa-mem
+  element-long-2406:
+    folder: Element_AVITI_20240626
+    md5: checksum.md5
+    match: Element-LngInsert
+    platform: Element AVITI, long insert
+    center: Element
+    aligner: bwa-mem
+  element-2412:
+    folder: Element-AVITI-20241216
+    md5: checksum.md5
+    platform: Element AVITI, standard insert
+    center: Element
+    aligner: bwa-mem
+  onso:
+    folder: PacBio_Onso_20240415
+    md5: checksums.md5
+    platform: PacBio Onso (short reads)
+    center: PacBio
+    aligner: bwa-mem
+  hifi-pacbio:
+    folder: PacBio_Revio_20240125
+    md5: checksums.md5
+    platform: PacBio HiFi Revio
+    center: PacBio
+    aligner: pbmm2
+  hifi-bcm:
+    folder: BCM_Revio_20240313
+    md5: checksum.md5
+    platform: PacBio HiFi Revio
+    center: BCM
+    aligner: pbmm2
+  ont-ucsc:
+    folder: UCSC_ONT_20231003
+    md5: checksum5.md
+    platform: ONT R10.4.1 standard
+    center: UCSC
+    aligner: minimap2
+    normal_series: ont-ne
+  ont-ul-ucsc:
+    folder: UCSC_ONT-UL_20231207
+    md5: checksum.md5
+    platform: ONT R10.4.1 ultra-long
+    center: UCSC
+    aligner: minimap2
+    normal_series: ont-ne
+  ont-ul-ne:
+    folder: Northeastern-ONT-UL-20241216
+    md5: checksum.md5
+    platform: ONT R10.4.1 ultra-long
+    center: Northeastern
+    aligner: minimap2
+    normal_series: ont-ne
+  ont-ne:
+    folder: Northeastern_ONT-std_20240422
+    md5: checksum.md5
+    exclude: gt25kb  # read-length subsets of the same runs
+    platform: ONT R10.4.1 standard (normals only)
+    center: Northeastern
+    aligner: minimap2
+  ultima:
+    folder: Ultima_UG100-WGS_20240530
+    md5: checksum.md5
+    platform: Ultima UG100
+    center: Ultima
+    aligner: ua
+
+# Somatic VCFs of the analysis folder, per series and build. tumor/normal: sample columns
+# (normal: null for tumor-only VCFs); normal: the normal sample the calls were made with.
+callers:
+  muTect2:
+    series: illumina-nygc
+    normal: N-D
+    folder: "analysis/NYGC-somatic-pipeline_20240412/{build_folder}"
+    md5: checksums.md5
+    file: HG008-T--HG008-N.mutect2.vcf.gz
+    builds: {GRCh38: GRCh38-GIABv3, GRCh37: GRCh37}
+    samples: {tumor: HG008-T, normal: HG008-N}
+    fields: [AD, AF, DP]
+  strelka2-snv:
+    series: illumina-nygc
+    normal: N-D
+    folder: "analysis/NYGC-somatic-pipeline_20240412/{build_folder}"
+    md5: checksums.md5
+    file: HG008-T--HG008-N.snv.strelka2.vcf.gz
+    builds: {GRCh38: GRCh38-GIABv3, GRCh37: GRCh37}
+    samples: {tumor: HG008-T, normal: HG008-N}
+    fields: [DP, AU, CU, GU, TU]
+  strelka2-indel:
+    series: illumina-nygc
+    normal: N-D
+    folder: "analysis/NYGC-somatic-pipeline_20240412/{build_folder}"
+    md5: checksums.md5
+    file: HG008-T--HG008-N.indel.strelka2.vcf.gz
+    builds: {GRCh38: GRCh38-GIABv3, GRCh37: GRCh37}
+    samples: {tumor: HG008-T, normal: HG008-N}
+    fields: [DP, TAR, TIR]
+  deepsomatic:
+    series: hifi-bcm
+    normal: N-D
+    folder: "analysis/BCM_Revio_20240313/pacbio-wgs-wdl_somatic_20240601"
+    md5: checksum.md5
+    file: "{build_folder}/HG008_deepsomatic.PASS.hiphase.vep.vcf.gz"
+    builds: {GRCh38: GRCh38-GIABv3}
+    samples: {tumor: HG008.tumor, normal: null}
+    fields: [AD, VAF, DP]
+
+# GIAB mapping references (bgzipped FASTA with .fai and .gzi)
+references:
+  GRCh38:
+    name: GRCh38_GIABv3
+    fasta: "release/references/GRCh38/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz"
+  GRCh37:
+    name: hs37d5
+    fasta: "release/references/GRCh37/hs37d5.fa.gz"
+
+# GIAB somatic draft benchmarks (truth sets) of HG008-T, batch 0823p23.
+# Small variants: one VCF of SNVs and indels (split into snv/indel by the toolkit) and the
+# benchmark regions; tiers: all (recommended), nogermlineinterference, nogermlinewithin50bp.
+truth:
+  v0.4:
+    folder: "data_somatic/HG008/Liss_lab/analysis/NIST_HG008-T_somatic-smvar_DraftBenchmark_V0.4-20261006"
+    md5: checksums.md5
+    builds: {GRCh38: GRCh38, GRCh37: GRCh37}
+    vcf: "{build_folder}/HG008-T_somatic_smvar_benchmark_v0.4_{build_folder}_tumorvariants.vcf.gz"
+    regions: "{build_folder}/HG008-T_somatic_smvar_benchmark_v0.4_{build_folder}_{tier}.bed"
+    tiers: [all, nogermlineinterference, nogermlinewithin50bp]
+# Structural variants (GRCh38 only): PASS VCF; regions clonal_and_subclonal (for batch
+# 0823p23 data, recommended) and clonal (excludes subclonal SVs)
+truth_sv:
+  v0.6:
+    folder: "data_somatic/HG008/Liss_lab/analysis/NIST_HG008-T_somatic-stvar-CNV_DraftBenchmark_V0.6-20261006"
+    md5: checksums.md5
+    builds: {GRCh38: GRCh38}
+    vcf: "{build_folder}/GRCh38_HG008-T-V0.6_somatic-stvar_PASS.draftbenchmark.vcf.gz"
+    regions: "{build_folder}/GRCh38_HG008-T-V0.6_somatic-stvar-clonal_and_subclonal.draftbenchmark.bed"
+    regions_clonal: "{build_folder}/GRCh38_HG008-T-V0.6_somatic-stvar-clonal.draftbenchmark.bed"
+
+# annotation resources (not HG008)
+annotation:
+  gencode:
+    builds: [GRCh38]
+    url: "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{release}/gencode.v{release}.basic.annotation.gtf.gz"
+  giab:
+    # GIAB genome stratifications v3.5 (Dwarshuis et al. 2024, Nat Commun 15:9029)
+    base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.5/{build}@all"
+    md5: "{build}-genome-stratifications-md5s.txt"
+    files:
+      homopolymer: "LowComplexity/{build}_AllHomopolymers_ge7bp_imperfectge11bp_slop5.bed.gz"
+      tandem_repeat: "LowComplexity/{build}_AllTandemRepeats.bed.gz"
+      segmental_duplication: "SegmentalDuplications/{build}_segdups.bed.gz"
+      low_mappability: "Mappability/{build}_lowmappabilityall.bed.gz"
+      all_difficult: "Union/{build}_alldifficultregions.bed.gz"

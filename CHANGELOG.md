@@ -14,3 +14,10 @@ ISO 8601 (`YYYY-MM-DD`).
 - Workflow profiles (samplesheet, params and extra files from templates; `accepts` / `requires` checks): `variantcomp`, `variantinterpretation`; `seqc2 samplesheet`, `seqc2 run`
 - HTTPS downloads in Python with an explicit CA bundle (no curl), also exported for samtools/bcftools
 - Example dataset configs: `default`, `variantcomp_small`, `variantcomp_full`, `variantinterpretation_small`
+- GIAB cancer reference HG008 (`source: hg008` in dataset configs, `seqc2 catalog --source hg008`): 14 sequencing series (Illumina, Element, Onso, PacBio HiFi, ONT standard/ultra-long, Ultima CRAM) on GRCh38-GIABv3 and GRCh37 from the md5 list of each folder; tumor/normal pairs T-ND and T-NP (ONT normals from another series); NYGC MuTect2/Strelka2 and BCM DeepSomatic VCFs; somatic small-variant draft benchmark v0.4 (split into SNVs and indels, region tiers) and SV draft benchmark v0.6; GIAB reference with `.gzi`; remote CRAM slices decoded with the reference; example configs `hg008_default`, `hg008_small`, `hg008_variantinterpretation_small`
+- Profiles: variables `source`, `source_name`, HG008 unit fields (`series`, `platform`, `build`, samples, coverage), `truth_sv*`, `reference_gzi`; per-VCF `tumor_id`/`normal_id`; `accepts.sources`
+
+### `Changed`
+
+- Profile `variantinterpretation`: sample names start with `{source_name}` (unchanged `SEQC2_...` for SEQC2 data)
+- Dataset `README.md`, `dataset.json` and `params.yaml` name the source (SEQC2 / HG008); `dataset.json` records `source`
