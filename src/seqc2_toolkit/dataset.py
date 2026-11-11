@@ -115,9 +115,11 @@ def load(path, overrides=None):
     for key, value in (overrides or {}).items():
         if value is not None:
             config[key] = str(Path(value).resolve()) if key in ("outdir", "cache") else value
-    if config["data"]["target_bed"] not in (True, False, "local"):
+    # data.target_bed exists for SEQC2 (WES target BED); HG008 configs have none
+    target_bed = config["data"].get("target_bed", False)
+    if target_bed not in (True, False, "local"):
         raise ConfigError(f"{path}: data.target_bed must be true, false or local")
-    if config["data"]["target_bed"] == "local" and config["access"] != "remote":
+    if target_bed == "local" and config["access"] != "remote":
         # a local dataset builds its target BED anyway
         config["data"]["target_bed"] = True
     if config["access"] not in ACCESS:

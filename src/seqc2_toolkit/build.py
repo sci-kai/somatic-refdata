@@ -255,7 +255,8 @@ class Builder:
         """
         require_tools("bcftools", "tabix", "bgzip")
         recipe = {"source": record["url"], "md5": record["md5"], "contigs": self.contigs}
-        changes = {k: v for k, v in self.config["vcf"].items() if v}
+        # the vcf section exists for SEQC2 configs only
+        changes = {k: v for k, v in self.config.get("vcf", {}).items() if v}
         # only a set option enters the recipe: datasets without it keep their recipe hash
         if changes:
             recipe["vcf"] = changes
