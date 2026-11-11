@@ -16,6 +16,7 @@ ISO 8601 (`YYYY-MM-DD`).
 - Dataset config section `vcf` (local datasets): `sample_order` (e.g. NORMAL before TUMOR) and `format_dp` (FORMAT/DP = sum of FORMAT/AD where missing), as needed by variantinterpretation's production filters; recorded in the recipe only when set, so existing datasets are not rebuilt
 - Dataset configs for the test tiers of the two workflows: `*_test.yaml` and `*_test_full.yaml` (remote), `*_offline.yaml`
 - Profiles: `variantinterpretation` sets `recompress_vcf` for remote datasets; `variantcomp` switches VEP and the known-variant lists off for remote datasets
+- Profile `variantcomp`: `igv_report` (IGV views of variantcomp 0.16.0-dev+) is switched on like `callable_regions` and `read_evidence` when every pair has tumor and normal BAMs
 
 ## 0.1.0-dev
 

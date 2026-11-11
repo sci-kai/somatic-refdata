@@ -32,9 +32,10 @@ params:
   input: "{samplesheet}"
   fasta: "{reference}"
   truth_technology: wgs
-  # callable regions and read evidence need tumor and normal BAMs of every pair
+  # callable regions, read evidence and the IGV views need tumor and normal BAMs of every pair
   callable_regions: "{all_bams}"
   read_evidence: "{all_bams}"
+  igv_report: "{all_bams}"
   vep_gtf: "{gencode_gtf}"
   giab_homopolymer: "{giab_homopolymer}"
   giab_tandem_repeat: "{giab_tandem_repeat}"
