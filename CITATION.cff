@@ -9,7 +9,8 @@ authors:
     given-names: Kai
     affiliation: "Core Unit Bioinformatics, Medical Faculty, Heinrich Heine University Düsseldorf"
   - name: "Core Unit Bioinformatics, Medical Faculty, Heinrich Heine University Düsseldorf"
-version: 0.1.0-dev
+version: 0.1.0
+date-released: "2026-11-12"
 license: MIT
 repository-code: "https://github.com/sci-kai/somatic-refdata"
 keywords:

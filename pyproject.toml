@@ -1,6 +1,6 @@
 [project]
 name = "somatic-refdata"
-version = "0.1.0-dev"
+version = "0.1.0"
 description = "Select, download and prepare somatic reference data (SEQC2 HCC1395, GIAB HG008) for testing workflows"
 readme = "README.md"
 license = { file = "LICENSE" }
