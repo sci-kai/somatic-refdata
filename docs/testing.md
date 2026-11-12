@@ -8,7 +8,7 @@ the workflow's [profile](profiles.md)).
 |---|---|---|---|---|
 | `test` | a fraction of one sample: one pair, records of one contig (chr21) | yes | does the pipeline run through (setup check) | `access: remote`, `subset.contigs: [chr21]` |
 | `test_full` | every record of one sample (IL_1) | yes | the same on a full sample | `access: remote` |
-| `test_full_offline` | one to all SEQC2 samples (or HG008 series), chosen by the user | no (after `somref fetch`) | validation on an offline HPC | `access: local` + `--pairs` / `--centers` |
+| `test_full_offline` | one to all SEQC2 samples (`--pairs` / `--centers`) or HG008 series (`select.series`), chosen by the user | no (after `somref fetch`) | validation on an offline HPC | `access: local` |
 
 Remote datasets (`test`, `test_full`) are SEQC2 only; HG008 datasets are always built
 locally (`somref fetch`).

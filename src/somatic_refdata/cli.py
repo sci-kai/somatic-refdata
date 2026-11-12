@@ -6,7 +6,7 @@
   fetch        download (only what is missing) and build the dataset folder
   samplesheet  write the samplesheet, params and extra files of a workflow profile
   run          samplesheet + nextflow run of a workflow profile
-  verify       recompute the md5 of every cached source and dataset file
+  verify       recompute the md5 of every dataset file (fetch --verify: also the cache)
   profiles     list the shipped workflow profiles
 
 Examples
@@ -30,6 +30,8 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
+
+import yaml
 
 from . import __version__, build, catalog, dataset, net, profiles
 from .cache import Cache, default_cache_dir, md5sum
@@ -115,7 +117,7 @@ def cmd_plan(args):
             print(f"{human(size):>9}  {url}")
         return
     rows = build.plan(config, units, cache, catalog.builder_sources(config))
-    width = max(len(r["item"]) for r in rows)
+    width = max((len(r["item"]) for r in rows), default=0)
     todo = 0
     for r in rows:
         print(f"{r['item']:<{width}}  {human(r['size']):>9}  {r['how']:<26} cached: {r['cached']}")
@@ -143,13 +145,14 @@ def cmd_fetch(args):
     print(f"dataset ready: {builder.root}")
 
 
-def with_defaults(built, key):
-    """Section key of a built dataset (dataset.json config), completed with the defaults.
+def with_defaults(built, key, defaults=None):
+    """Section key of a built dataset (dataset.json config), completed with the defaults
+    of its source (SEQC2 unless given).
 
     Datasets of older toolkit versions lack sections or keys added later (e.g.
     data.reference_plain); they were built with the default values.
     """
-    default = dataset.DEFAULTS[key]
+    default = (defaults or dataset.DEFAULTS)[key]
     value = built.get(key)
     if isinstance(default, dict):
         return {**default, **(value or {})}
@@ -162,7 +165,8 @@ def write_profile(args, config):
     root = outdir_of(config)
     if config["access"] == "remote":
         # a remote dataset is cheap to describe: always from the current config
-        _, cache, records = context(args, need_config=False)
+        cache = Cache(config["cache"] or args.cache or default_cache_dir())
+        records = catalog.build(cache, source=config["source"])
         units = dataset.select(config, records)
         facts = build.remote_facts(config, units, catalog.builder_sources(config), cache, root)
         build.write_remote(root, facts)
@@ -173,9 +177,16 @@ def write_profile(args, config):
     else:
         # the folder must hold the dataset of this config (same selection and subset)
         built = json.loads((root / "dataset.json").read_text()).get("config", {})
-        wanted = {k: config[k] for k in ("select", "data", "subset", "vcf")}
+        defaults = dataset.defaults_of(config["source"])
+        if built.get("source", "seqc2") != config["source"]:
+            raise dataset.ConfigError(
+                f"{root}: the dataset was built from source {built.get('source', 'seqc2')}, "
+                f"the config {args.config} selects {config['source']}"
+            )
+        # the sections of the config's source (HG008 has no vcf section)
+        wanted = {k: config[k] for k in ("select", "data", "subset", "vcf") if k in defaults}
         # datasets of toolkit versions without a section or key were built with its defaults
-        if {k: with_defaults(built, k) for k in wanted} != wanted:
+        if {k: with_defaults(built, k, defaults) for k in wanted} != wanted:
             raise dataset.ConfigError(
                 f"{root}: the dataset was built with another selection or subset than "
                 f"{args.config} with these options; run 'somref fetch' with the same options first"
@@ -221,6 +232,10 @@ def cmd_verify(args):
     if config["access"] == "remote":
         print("remote dataset: no local files to verify")
         return
+    if not (root / build.MANIFEST).exists():
+        raise dataset.ConfigError(
+            f"{root}: no {build.MANIFEST}; run 'somref fetch {args.config}' first"
+        )
     manifest = build.Manifest(root)
     bad = 0
     for rel, entry in sorted(manifest.entries.items()):
@@ -356,6 +371,13 @@ def main(argv=None):
         args.func(args)
     except (dataset.ConfigError, RuntimeError) as err:
         print(f"ERROR: {err}", file=sys.stderr)
+        sys.exit(1)
+    except (OSError, yaml.YAMLError, ValueError, KeyError, EOFError) as err:
+        # unexpected input (missing or broken file, bad value): a short message; the
+        # traceback with --verbose
+        if args.verbose:
+            raise
+        print(f"ERROR: {type(err).__name__}: {err} (run with -v for details)", file=sys.stderr)
         sys.exit(1)
 
 

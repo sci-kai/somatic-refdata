@@ -23,7 +23,7 @@ log = logging.getLogger("somref")
 
 def default_cache_dir():
     """Cache folder: $SOMREF_CACHE, else ~/.cache/somref."""
-    return Path(os.environ.get("SOMREF_CACHE") or Path.home() / ".cache" / "seqc2")
+    return Path(os.environ.get("SOMREF_CACHE") or Path.home() / ".cache" / "somref")
 
 
 def md5sum(path, chunk=1 << 20):

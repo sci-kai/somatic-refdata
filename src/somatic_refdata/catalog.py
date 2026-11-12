@@ -49,14 +49,31 @@ def builder_sources(config):
     return load_sources()
 
 
+MD5_LINE = re.compile(r"^[0-9a-fA-F]{32}\s+\S")
+
+
+def is_md5_list(text):
+    """True if text has at least one '<md5> <path>' line (not an error page)."""
+    return any(MD5_LINE.match(line) for line in text.splitlines())
+
+
 def md5_list(cache, url, refresh=False):
-    """Lines of a server md5 list; cached in the cache folder (used offline as fallback)."""
+    """Lines of a server md5 list; cached in the cache folder (used offline as fallback).
+
+    A reply without any md5 line (an error page, the server's throttling reply) counts
+    as a failed fetch: it is neither cached nor used.
+    """
     path = cache.path(url)
     if refresh or not path.exists():
         text = net.get_text(url)
+        if text is not None and not is_md5_list(text):
+            log.warning("%s is not an md5 list (%d bytes): %s", url, len(text), text[:80])
+            text = None
         if text is not None:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(text)
+            tmp.replace(path)
         elif not path.exists():
             raise RuntimeError(f"{url} can't be fetched and is not in the cache {cache.root}")
         else:

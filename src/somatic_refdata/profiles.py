@@ -141,10 +141,15 @@ def render(template, values):
     return text, values.empty
 
 
-def index_of(alignment):
-    """Index path of a dataset alignment (.bam.bai or .cram.crai), None without one."""
+def index_of(unit, role):
+    """Index of the alignment of a role: as recorded in the dataset (remote datasets: the
+    server's index URL), else the alignment + .bai / .crai; None without alignment."""
+    alignment = unit["bams"].get(role)
     if not alignment:
         return None
+    recorded = (unit.get("bais") or {}).get(role)
+    if recorded:
+        return recorded
     return alignment + (".crai" if alignment.endswith(".cram") else ".bai")
 
 
@@ -179,9 +184,9 @@ def rows(facts, unit_kind, path):
             "tumor_id": tumor_id,
             "normal_id": normal_id,
             "tumor_bam": path(unit["bams"].get("T")),
-            "tumor_bai": path(index_of(unit["bams"].get("T"))),
+            "tumor_bai": path(index_of(unit, "T")),
             "normal_bam": path(unit["bams"].get("N")),
-            "normal_bai": path(index_of(unit["bams"].get("N"))),
+            "normal_bai": path(index_of(unit, "N")),
         }
         if unit_kind == "vcf":
             for vcf in unit["vcfs"]:
@@ -213,7 +218,7 @@ def rows(facts, unit_kind, path):
                         "role": role,
                         "aligner": unit.get("aligner", "bwa"),
                         "bam": path(bam),
-                        "bai": path(index_of(bam)),
+                        "bai": path(index_of(unit, role)),
                     }
                 )
     return result
@@ -380,7 +385,8 @@ def write(profile, dataset_dir, workdir=None, config_base=None):
     # params as Nextflow config, after the extra files (a param may name one of them)
     config_path = workdir / "params.config"
     config_path.write_text(
-        f"// Parameters of {profile['name']} for the SEQC2 dataset {facts['name']} "
+        f"// Parameters of {profile['name']} for the {dataset_values['source_name']} dataset "
+        f"{facts['name']} "
         "(somatic-refdata; do not edit, regenerate with somref samplesheet)\n"
         + nextflow_params(params, workdir, config_base)
     )
@@ -473,6 +479,9 @@ def run_command(
     pipeline = pipeline or profile["pipeline"]
     if not pipeline:
         raise ConfigError(f"profile {profile['name']}: no pipeline; give --pipeline")
+    # a local pipeline folder: absolute, as nextflow runs in the run folder
+    if Path(pipeline).exists():
+        pipeline = str(Path(pipeline).resolve())
     cmd = ["nextflow", "run", pipeline]
     revision = revision or profile["revision"]
     # a local pipeline folder has no revision

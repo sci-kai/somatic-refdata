@@ -30,6 +30,7 @@ from pathlib import Path
 
 from . import __version__, net, vcfprep
 from .cache import file_state, md5sum
+from .catalog import is_md5_list
 from .dataset import ConfigError, as_list
 
 log = logging.getLogger("somref")
@@ -130,7 +131,10 @@ class Manifest:
     def save(self):
         """Write the manifest (after every output, so an interrupted run keeps it)."""
         data = {"toolkit_version": __version__, "files": self.entries}
-        self.path.write_text(json.dumps(data, indent=1, sort_keys=True))
+        # atomic: an interrupted write must not leave a broken manifest
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(data, indent=1, sort_keys=True))
+        tmp.replace(self.path)
 
 
 class Builder:
@@ -159,11 +163,30 @@ class Builder:
             return self.root / rel
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
+        # remove the old outputs first: they may be hard links or symlinks into the cache
+        # (whole BAMs, reference), which writing in place would change for every dataset
+        for r in rels:
+            old = self.root / r
+            if old.exists() or old.is_symlink():
+                old.unlink()
         log.info("building: %s", rel)
         build(path)
         for r in rels:
             self.manifest.record(r, recipe, source)
         return path
+
+    def md5_list(self, url):
+        """{path: md5} of a server md5 list fetched through the cache; an error page or
+        throttling reply instead of a list is removed from the cache and is an error."""
+        path = self.cache.fetch(url)
+        text = path.read_text(errors="replace")
+        if not is_md5_list(text):
+            path.unlink()
+            raise RuntimeError(
+                f"{url} is not an md5 list ({len(text)} bytes: {text[:80]!r}); "
+                "the server may be busy: run the command again"
+            )
+        return parse_md5_text(text)
 
     # reference -------------------------------------------------------------------
 
@@ -383,7 +406,7 @@ class Builder:
             if entry.get("md5_list"):
                 list_url = f"{self.base}/{entry['md5_list']}"
                 if list_url not in lists:
-                    lists[list_url] = parse_md5_text(self.cache.fetch(list_url).read_text())
+                    lists[list_url] = self.md5_list(list_url)
                 expected = lists[list_url].get(entry["md5_key"])
                 if expected is None:
                     raise RuntimeError(f"{entry['md5_key']} is not in {list_url}")
@@ -454,12 +477,8 @@ class Builder:
                 f"data.giab: {', '.join(unknown)} unknown; choose from {', '.join(spec['files'])}"
             )
         base = spec["base_url"]
-        md5 = {}
         md5_url = f"{base}/{spec['md5']}"
-        for line in self.cache.fetch(md5_url).read_text().splitlines():
-            parts = line.split()
-            if len(parts) == 2:
-                md5[parts[1].removeprefix("./")] = parts[0]
+        md5 = self.md5_list(md5_url)
         # local folder named after the build: no '@' in file names
         folder = f"annotation/giab/{Path(base).name.split('@')[0]}"
         result = {}
@@ -468,6 +487,8 @@ class Builder:
             url = f"{base}/{rel_src}"
             rel = f"{folder}/{rel_src}"
             expected = md5.get(rel_src)
+            if expected is None:
+                raise RuntimeError(f"{rel_src} is not in {md5_url}")
             recipe = {"source": url, "md5": expected, "contigs": self.contigs}
 
             def build(path, url=url, expected=expected):
@@ -513,6 +534,7 @@ class Builder:
                 if technology in self.sources["target_bed"]:
                     targets[technology] = self.target_bed(technology, order)
                     res[f"target_bed_{technology.lower()}"] = rel(targets[technology])
+        check_bam_subset(self.config, units)
         regions = None
         if any(u["bams"] for u in units) and self.subset["bam_windows"]:
             regions = self.bam_regions(targets.get("WES"))
@@ -650,6 +672,21 @@ def parse_md5_text(text):
     return result
 
 
+def check_bam_subset(config, units):
+    """Stop if alignments would be linked whole although the config asks for a subset:
+    contigs and subsampling are applied to BAMs/CRAMs only within subset.bam_windows."""
+    subset = config["subset"]
+    if not any(u["bams"] for u in units) or subset["bam_windows"]:
+        return
+    asked = [k for k in ("contigs", "bam_subsample") if subset[k]]
+    if asked:
+        raise ConfigError(
+            f"subset.{' / subset.'.join(asked)} with data.bam but no subset.bam_windows: "
+            "whole alignments would be used unchanged; give subset.bam_windows on the "
+            "contigs (e.g. chr22:1-50818468) or leave the subset out"
+        )
+
+
 def plan(config, units, cache, sources):
     """What fetch would get: per remote source, its size and whether it is cached already.
 
@@ -657,6 +694,7 @@ def plan(config, units, cache, sources):
     cached (ok, unverified, missing, or '-' for remote reads).
     """
     data, subset = config["data"], config["subset"]
+    check_bam_subset(config, units)
     base = sources["base_url"]
     contigs = as_list(subset["contigs"])
     rows = []
@@ -846,6 +884,8 @@ def remote_facts(config, units, sources, cache=None, root=None):
             for r in unit["vcfs"]
         ]
         entry["bams"] = {role: r["url"] for role, r in unit["bams"].items()}
+        # the server's index names (SEQC2: <name>.bai, not <name>.bam.bai)
+        entry["bais"] = {role: unit["bais"][role]["url"] for role in unit["bams"]}
         facts["units"].append(entry)
     if data["truth"]:
         files = sources["truth"].get(data["truth"])

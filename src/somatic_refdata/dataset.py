@@ -38,6 +38,7 @@ Default (empty config): WGS of pair IL_1 (Illumina center, replicate 1), bwa + M
 VCF, reference and truth set; genome-wide.
 """
 
+import copy
 import logging
 from pathlib import Path
 
@@ -161,6 +162,13 @@ def override_select(config, technologies=None, pairs=None, centers=None, replica
         "replicates": replicates,
     }
     sel = config["select"]
+    given = [k for k, v in values.items() if v is not None]
+    unknown = [k for k in given if k not in sel]
+    if unknown:
+        raise ConfigError(
+            f"--{', --'.join(unknown)}: not available for source {config['source']} "
+            f"(select keys: {', '.join(sel)}); set them in the select section of the config"
+        )
     if (centers or replicates) and not pairs and sel["pairs"]:
         log.info("select.pairs %s of the config replaced by centers/replicates", sel["pairs"])
         sel["pairs"] = None
@@ -186,7 +194,8 @@ def merge(defaults, user, where):
     merged = {}
     for key, default in defaults.items():
         if key not in user:
-            merged[key] = default
+            # a copy: callers change the merged config (e.g. command-line overrides)
+            merged[key] = copy.deepcopy(default)
         elif isinstance(default, dict):
             if not isinstance(user[key], dict):
                 raise ConfigError(f"{where}: '{key}' must be a mapping")

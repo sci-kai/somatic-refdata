@@ -75,10 +75,24 @@ def context():
     return _context
 
 
+def total_size(headers, status):
+    """Full size of the remote file from a response: Content-Range (206, 416) or
+    Content-Length (200); None if the server doesn't say."""
+    content_range = headers.get("Content-Range") or ""
+    if "/" in content_range and content_range.rsplit("/", 1)[1].strip().isdigit():
+        return int(content_range.rsplit("/", 1)[1])
+    length = headers.get("Content-Length")
+    if status == 200 and length and length.isdigit():
+        return int(length)
+    return None
+
+
 def get_file(url, part, retries=5, delay=10):
     """Download url into the file part; resumes a partial file (HTTP Range); retries.
 
-    Raises RuntimeError if the download fails after all attempts.
+    A body shorter than the size the server announced (connection closed early) is an
+    incomplete attempt: the next attempt continues at its end. Raises RuntimeError if the
+    download fails after all attempts.
     """
     for attempt in range(1, retries + 1):
         # bytes already downloaded by an earlier, interrupted attempt
@@ -89,13 +103,28 @@ def get_file(url, part, retries=5, delay=10):
             with urllib.request.urlopen(request, context=context(), timeout=300) as resp:
                 # 206: the server continues at offset; 200: it sends the whole file
                 mode = "ab" if offset and resp.status == 206 else "wb"
+                total = total_size(resp.headers, resp.status)
                 with open(part, mode) as fh:
                     shutil.copyfileobj(resp, fh, 1 << 20)
-            return
-        except urllib.error.HTTPError as err:
-            # 416: nothing left to download (the partial file is complete)
-            if err.code == 416 and offset:
+            size = part.stat().st_size
+            if total is None or size == total:
                 return
+            if size > total:
+                # more than the file has: a stale partial file of another version
+                part.unlink()
+                reason = f"{size} bytes, more than the {total} of the file; starting again"
+            else:
+                reason = f"incomplete: {size} of {total} bytes"
+        except urllib.error.HTTPError as err:
+            # 416: nothing left to download, if the partial file has the full size
+            if err.code == 416 and offset:
+                total = total_size(err.headers or {}, 416)
+                if total is None or total == offset:
+                    return
+                part.unlink()
+                reason = f"partial file of {offset} bytes, the file has {total}; starting again"
+                log.warning("download of %s: %s", url, reason)
+                continue
             # other client errors (404, 403, ...) won't go away by retrying
             if 400 <= err.code < 500:
                 raise RuntimeError(f"download of {url} failed: HTTP {err.code}") from err

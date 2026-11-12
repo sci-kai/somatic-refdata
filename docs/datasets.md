@@ -52,6 +52,14 @@ cache: null               # default: $SOMREF_CACHE or ~/.cache/somref
 **Default (empty config):** WGS of one center and replicate, IL_1, aligned with bwa and
 called with MuTect2; VCF, reference and truth set, genome-wide.
 
+Alignments are cut only within `subset.bam_windows`: `subset.contigs` and
+`subset.bam_subsample` with `data.bam` but without windows stop with an error (whole
+BAMs would be used unchanged). For a whole contig give its full window, e.g.
+`chr22:1-50818468`.
+
+The options `--technologies`, `--pairs`, `--centers` and `--replicates` exist for SEQC2
+configs only; HG008 configs choose with their `select` section.
+
 `vcf` is for workflows that expect a sample order (e.g. filters that index the samples by
 position) or a read depth per sample: the SEQC2 MuTect2 (GATK 3.8) records have no
 FORMAT/DP. Records with FORMAT/DP are kept; the header documents the change
