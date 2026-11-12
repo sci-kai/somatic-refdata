@@ -510,6 +510,7 @@ class Builder:
     def build(self, units):
         """Build every output of the selection; write dataset.json, checksums and README."""
         data = self.config["data"]
+        check_bam_subset(self.config, units)  # before any remote work
         rel = lambda p: str(Path(p).relative_to(self.root))  # noqa: E731
         order = self.contig_order()
         # contigs: the records of every file are restricted to them already (local build)
@@ -534,7 +535,6 @@ class Builder:
                 if technology in self.sources["target_bed"]:
                     targets[technology] = self.target_bed(technology, order)
                     res[f"target_bed_{technology.lower()}"] = rel(targets[technology])
-        check_bam_subset(self.config, units)
         regions = None
         if any(u["bams"] for u in units) and self.subset["bam_windows"]:
             regions = self.bam_regions(targets.get("WES"))

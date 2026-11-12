@@ -119,8 +119,9 @@ def get_file(url, part, retries=5, delay=10):
             # 416: nothing left to download, if the partial file has the full size
             if err.code == 416 and offset:
                 total = total_size(err.headers or {}, 416)
-                if total is None or total == offset:
+                if total == offset:
                     return
+                # size unknown or different: the partial file can't be trusted
                 part.unlink()
                 reason = f"partial file of {offset} bytes, the file has {total}; starting again"
                 log.warning("download of %s: %s", url, reason)

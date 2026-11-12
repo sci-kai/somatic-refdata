@@ -3,7 +3,7 @@
 name: variantcomp_full  # dataset name (default: the file name)
 select:
   technologies: [WGS, WES]
-  centers: all
+  centers: [EA, FD, IL, LL, NC, NV]  # every center with WGS + WES (NS: WGS only)
   replicates: [1]
 data:
   gencode: 46
