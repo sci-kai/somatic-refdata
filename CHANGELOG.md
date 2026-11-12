@@ -8,15 +8,27 @@ ISO 8601 (`YYYY-MM-DD`).
 
 ### `Added`
 
-- Remote datasets (`access: remote`): nothing is downloaded; samplesheets and params hold the URLs of the original SEQC2 files, the workflow reads them online. With `subset.contigs` a smaller online reference is used (`remote_references`: GRCh38 chr21 of nf-core/test-datasets, checked identical to GRCh38.d1.vd1); BAM slices are refused (AI-assisted, Claude Code)
+- GIAB cancer reference HG008 (`source: hg008` in dataset configs, `seqc2 catalog --source hg008`): 14 sequencing series (Illumina, Element, Onso, PacBio HiFi, ONT standard/ultra-long, Ultima CRAM) on GRCh38-GIABv3 and GRCh37 from the md5 list of each folder; tumor/normal pairs T-ND and T-NP (ONT normals from another series); NYGC MuTect2/Strelka2 and BCM DeepSomatic VCFs; somatic small-variant draft benchmark v0.4 (split into SNVs and indels, region tiers) and SV draft benchmark v0.6; GIAB reference with `.gzi`; remote CRAM slices decoded with the reference; example configs `hg008_default`, `hg008_small`, `workflows/variantinterpretation/hg008_small`
+- Profiles: variables `source`, `source_name`, HG008 unit fields (`series`, `platform`, `build`, samples, coverage), `truth_sv*`, `reference_gzi`; per-VCF `tumor_id`/`normal_id`; `accepts.sources`
+- Remote datasets (`access: remote`, SEQC2): nothing is downloaded; samplesheets and params hold the URLs of the original SEQC2 files, the workflow reads them online. With `subset.contigs` a smaller online reference is used (`remote_references`: GRCh38 chr21 of nf-core/test-datasets, checked identical to GRCh38.d1.vd1); BAM slices are refused
 - `--technologies`, `--pairs`, `--centers`, `--replicates` for `plan`, `fetch`, `samplesheet`, `run` and `verify`: choose the samples without editing the config; `samplesheet` stops if the dataset folder was built with another selection
 - Workflow profiles: `params.config` (the params as Nextflow config) next to `params.yaml`, with `--config-base` for files committed into a pipeline; `params_remote` / `files_remote` for remote datasets; template variables `access` and `contigs` (also recorded in dataset.json)
 - `data.target_bed: local` for remote datasets: the WES target BED is written into the dataset folder (BED3, merged, gzip); VCFs and reference stay online
 - `data.reference_plain`: contig subsets of the reference as plain FASTA (for tools that can't read bgzipped FASTA, e.g. GATK without .gzi)
 - Dataset config section `vcf` (local datasets): `sample_order` (e.g. NORMAL before TUMOR) and `format_dp` (FORMAT/DP = sum of FORMAT/AD where missing), as needed by variantinterpretation's production filters; recorded in the recipe only when set, so existing datasets are not rebuilt
-- Dataset configs for the test tiers of the two workflows: `*_test.yaml` and `*_test_full.yaml` (remote), `*_offline.yaml`
+- Dataset configs for the test tiers of the two workflows: `test.yaml` and `test_full.yaml` (remote), `offline.yaml`
 - Profiles: `variantinterpretation` sets `recompress_vcf` for remote datasets; `variantcomp` switches VEP and the known-variant lists off for remote datasets
 - Profile `variantcomp`: `igv_report` (IGV views of variantcomp 0.16.0-dev+) is switched on like `callable_regions` and `read_evidence` when every pair has tumor and normal BAMs
+- Profiles: optional `workflow` section (homepage, dataset configs, notes); `seqc2 profiles` marks the shipped profiles as workflow-specific and prints pipeline, revision, homepage, configs and notes
+- Publication on GitHub: `CITATION.cff`, project URLs and metadata in `pyproject.toml`, GitHub Actions workflow (unit tests, black, ruff on Python 3.10 and 3.12)
+- Documentation in `docs/`: `sources.md` (SEQC2, HG008), `datasets.md` (config reference, remote datasets, cache, dataset folders), `profiles.md` (profile format, template variables), `testing.md` (three test tiers), `workflows/variantcomp.md`, `workflows/variantinterpretation.md` (workflow-specific)
+
+### `Changed`
+
+- Workflow-specific dataset configs moved from `datasets/<workflow>_<tier>.yaml` to `datasets/workflows/<workflow>/<tier>.yaml` (dataset names unchanged: explicit `name`); shipped profiles start with a `WORKFLOW-SPECIFIC PROFILE` header
+- README shortened for a public audience; details moved to `docs/`
+- Profile `variantinterpretation`: sample names start with `{source_name}` (unchanged `SEQC2_...` for SEQC2 data)
+- Dataset `README.md`, `dataset.json` and `params.yaml` name the source (SEQC2 / HG008); `dataset.json` records `source`
 
 ## 0.1.0-dev
 
@@ -28,10 +40,3 @@ ISO 8601 (`YYYY-MM-DD`).
 - Workflow profiles (samplesheet, params and extra files from templates; `accepts` / `requires` checks): `variantcomp`, `variantinterpretation`; `seqc2 samplesheet`, `seqc2 run`
 - HTTPS downloads in Python with an explicit CA bundle (no curl), also exported for samtools/bcftools
 - Example dataset configs: `default`, `variantcomp_small`, `variantcomp_full`, `variantinterpretation_small`
-- GIAB cancer reference HG008 (`source: hg008` in dataset configs, `seqc2 catalog --source hg008`): 14 sequencing series (Illumina, Element, Onso, PacBio HiFi, ONT standard/ultra-long, Ultima CRAM) on GRCh38-GIABv3 and GRCh37 from the md5 list of each folder; tumor/normal pairs T-ND and T-NP (ONT normals from another series); NYGC MuTect2/Strelka2 and BCM DeepSomatic VCFs; somatic small-variant draft benchmark v0.4 (split into SNVs and indels, region tiers) and SV draft benchmark v0.6; GIAB reference with `.gzi`; remote CRAM slices decoded with the reference; example configs `hg008_default`, `hg008_small`, `hg008_variantinterpretation_small`
-- Profiles: variables `source`, `source_name`, HG008 unit fields (`series`, `platform`, `build`, samples, coverage), `truth_sv*`, `reference_gzi`; per-VCF `tumor_id`/`normal_id`; `accepts.sources`
-
-### `Changed`
-
-- Profile `variantinterpretation`: sample names start with `{source_name}` (unchanged `SEQC2_...` for SEQC2 data)
-- Dataset `README.md`, `dataset.json` and `params.yaml` name the source (SEQC2 / HG008); `dataset.json` records `source`

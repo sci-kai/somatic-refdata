@@ -1,0 +1,59 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it as below, and cite the reference data you use
+  (SEQC2, GIAB HG008; see README.md).
+title: "seqc2-toolkit: somatic reference data (SEQC2, GIAB HG008) for testing workflows"
+type: software
+authors:
+  - family-names: Horny
+    given-names: Kai
+    affiliation: "Core Unit Bioinformatics, Medical Faculty, Heinrich Heine University Düsseldorf"
+  - name: "Core Unit Bioinformatics, Medical Faculty, Heinrich Heine University Düsseldorf"
+version: 0.1.0-dev
+license: MIT
+repository-code: "https://github.com/core-unit-bioinformatics/seqc2-toolkit"
+keywords:
+  - bioinformatics
+  - somatic variants
+  - benchmark
+  - SEQC2
+  - GIAB
+  - HG008
+  - nextflow
+references:
+  - type: article
+    title: >-
+      Establishing community reference samples, data and call sets for benchmarking
+      cancer mutation detection using whole-genome sequencing
+    authors:
+      - family-names: Fang
+        given-names: Li Tai
+      - name: et al.
+    journal: Nature Biotechnology
+    year: 2021
+    volume: 39
+    start: 1151
+    end: 1160
+    doi: 10.1038/s41587-021-00993-6
+  - type: article
+    title: >-
+      Toward best practice in cancer mutation detection with whole-genome and whole-exome
+      sequencing
+    authors:
+      - family-names: Xiao
+        given-names: Wenming
+      - name: et al.
+    journal: Nature Biotechnology
+    year: 2021
+    volume: 39
+    start: 1141
+    end: 1150
+    doi: 10.1038/s41587-021-00994-5
+  - type: article
+    title: >-
+      Development and extensive sequencing of a broadly-consented Genome in a Bottle
+      matched tumor-normal pair for somatic benchmarks
+    authors:
+      - name: Genome in a Bottle Consortium
+    journal: Scientific Data
+    doi: 10.1038/s41597-025-05438-2

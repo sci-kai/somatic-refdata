@@ -1,11 +1,25 @@
 [project]
 name = "seqc2-toolkit"
 version = "0.1.0-dev"
-description = "Select, download and prepare SEQC2 somatic reference data (HCC1395/HCC1395BL) for testing workflows"
+description = "Select, download and prepare somatic reference data (SEQC2 HCC1395, GIAB HG008) for testing workflows"
 readme = "README.md"
 license = { file = "LICENSE" }
+authors = [{ name = "Kai Horny" }, { name = "Core Unit Bioinformatics, Medical Faculty, HHU" }]
 requires-python = ">=3.10"
 dependencies = ["pyyaml"]
+keywords = ["bioinformatics", "somatic variants", "benchmark", "SEQC2", "GIAB", "HG008", "nextflow", "test data"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+[project.urls]
+Homepage = "https://github.com/core-unit-bioinformatics/seqc2-toolkit"
+Documentation = "https://github.com/core-unit-bioinformatics/seqc2-toolkit/tree/main/docs"
+Changelog = "https://github.com/core-unit-bioinformatics/seqc2-toolkit/blob/main/CHANGELOG.md"
+Issues = "https://github.com/core-unit-bioinformatics/seqc2-toolkit/issues"
 
 [project.optional-dependencies]
 dev = ["pytest", "black", "ruff"]
