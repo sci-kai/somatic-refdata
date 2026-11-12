@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: >-
   If you use this software, please cite it as below, and cite the reference data you use
   (SEQC2, GIAB HG008; see README.md).
-title: "seqc2-toolkit: somatic reference data (SEQC2, GIAB HG008) for testing workflows"
+title: "somatic-refdata: somatic reference data (SEQC2, GIAB HG008) for testing workflows"
 type: software
 authors:
   - family-names: Horny
@@ -11,7 +11,7 @@ authors:
   - name: "Core Unit Bioinformatics, Medical Faculty, Heinrich Heine University Düsseldorf"
 version: 0.1.0-dev
 license: MIT
-repository-code: "https://github.com/core-unit-bioinformatics/seqc2-toolkit"
+repository-code: "https://github.com/sci-kai/somatic-refdata"
 keywords:
   - bioinformatics
   - somatic variants

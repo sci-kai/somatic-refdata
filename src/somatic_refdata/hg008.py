@@ -43,7 +43,7 @@ import re
 from . import catalog
 from .dataset import ConfigError, as_list, choose
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 PAIR_NAMES = {"N-D": "T-ND", "N-P": "T-NP"}
 
@@ -370,7 +370,7 @@ def select(config, records):
 def builder_sources(config):
     """The HG008 server description resolved for one config (build, truth tier).
 
-    Returns the layout of sources.yaml (SEQC2) that build.Builder and build.plan read.
+    Returns the layout of sources_seqc2.yaml (SEQC2) that build.Builder and build.plan read.
     """
     sources = load_sources()
     build = config["select"]["build"]

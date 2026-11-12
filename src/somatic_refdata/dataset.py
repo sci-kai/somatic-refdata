@@ -3,7 +3,7 @@
 source: seqc2 (default; SEQC2 HCC1395/HCC1395BL, below) or hg008 (GIAB HG008, see hg008.py).
 A SEQC2 dataset config has three optional sections; everything left out takes the default:
 
-  access: local           local: download and build the dataset folder (seqc2 fetch);
+  access: local           local: download and build the dataset folder (somref fetch);
                           remote: no download, the workflow reads the files from the
                           SEQC2 server (URLs; whole files only, see build.remote_facts)
 
@@ -43,7 +43,7 @@ from pathlib import Path
 
 import yaml
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 SOURCE_NAMES = ("seqc2", "hg008")
 ACCESS = ("local", "remote")

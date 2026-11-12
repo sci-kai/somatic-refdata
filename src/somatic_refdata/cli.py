@@ -1,4 +1,4 @@
-"""Command line: seqc2 <command> ...
+"""Command line: somref <command> ...
 
   catalog      what SEQC2 provides (technologies, pairs, aligners, callers, BAMs);
                --source hg008: GIAB HG008 series, caller VCFs, benchmarks
@@ -10,17 +10,17 @@
   profiles     list the shipped workflow profiles
 
 Examples
-  seqc2 catalog
-  seqc2 catalog --source hg008
-  seqc2 plan datasets/default.yaml
-  seqc2 plan datasets/hg008_small.yaml
-  seqc2 fetch datasets/workflows/variantcomp/small.yaml --outdir data/small
-  seqc2 fetch datasets/workflows/variantinterpretation/offline.yaml --pairs IL_1,FD_1,NV_1
-  seqc2 samplesheet datasets/workflows/variantinterpretation/test.yaml \\
+  somref catalog
+  somref catalog --source hg008
+  somref plan datasets/default.yaml
+  somref plan datasets/hg008_small.yaml
+  somref fetch datasets/workflows/variantcomp/small.yaml --outdir data/small
+  somref fetch datasets/workflows/variantinterpretation/offline.yaml --pairs IL_1,FD_1,NV_1
+  somref samplesheet datasets/workflows/variantinterpretation/test.yaml \\
       --profile variantinterpretation --workdir assets/seqc2/test \\
       --config-base '${projectDir}/assets/seqc2/test'
-  seqc2 samplesheet datasets/workflows/variantcomp/small.yaml --profile variantcomp
-  seqc2 run datasets/workflows/variantcomp/small.yaml --profile variantcomp \\
+  somref samplesheet datasets/workflows/variantcomp/small.yaml --profile variantcomp
+  somref run datasets/workflows/variantcomp/small.yaml --profile variantcomp \\
       --pipeline ../workflow-nxf-somatic-variantcomp --nf-profile conda
 """
 
@@ -34,7 +34,7 @@ from pathlib import Path
 from . import __version__, build, catalog, dataset, net, profiles
 from .cache import Cache, default_cache_dir, md5sum
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 
 def human(size):
@@ -167,7 +167,9 @@ def write_profile(args, config):
         facts = build.remote_facts(config, units, catalog.builder_sources(config), cache, root)
         build.write_remote(root, facts)
     elif not (root / "dataset.json").exists():
-        raise dataset.ConfigError(f"{root}: no dataset.json; run 'seqc2 fetch {args.config}' first")
+        raise dataset.ConfigError(
+            f"{root}: no dataset.json; run 'somref fetch {args.config}' first"
+        )
     else:
         # the folder must hold the dataset of this config (same selection and subset)
         built = json.loads((root / "dataset.json").read_text()).get("config", {})
@@ -176,7 +178,7 @@ def write_profile(args, config):
         if {k: with_defaults(built, k) for k in wanted} != wanted:
             raise dataset.ConfigError(
                 f"{root}: the dataset was built with another selection or subset than "
-                f"{args.config} with these options; run 'seqc2 fetch' with the same options first"
+                f"{args.config} with these options; run 'somref fetch' with the same options first"
             )
     written = profiles.write(profile, root, args.workdir, args.config_base)
     for path in written:
@@ -251,15 +253,15 @@ def cmd_profiles(_args):
 def parser():
     """The argument parser with all subcommands."""
     top = argparse.ArgumentParser(
-        prog="seqc2",
+        prog="somref",
         description=__doc__.split("\n")[0],
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="\n".join(__doc__.split("\n")[1:]),
     )
-    top.add_argument("--version", action="version", version=f"seqc2-toolkit {__version__}")
+    top.add_argument("--version", action="version", version=f"somatic-refdata {__version__}")
     top.add_argument("-v", "--verbose", action="store_true", help="debug messages")
     top.add_argument("--ca-bundle", help="CA certificate bundle for HTTPS")
-    top.add_argument("--cache", help="download cache (default: $SEQC2_CACHE or ~/.cache/seqc2)")
+    top.add_argument("--cache", help="download cache (default: $SOMREF_CACHE or ~/.cache/somref)")
     sub = top.add_subparsers(dest="command", required=True)
 
     def with_config(p):
@@ -332,7 +334,7 @@ def parser():
 
 
 def split_nextflow_args(argv):
-    """(seqc2 arguments, nextflow arguments): everything after '--' goes to nextflow."""
+    """(somref arguments, nextflow arguments): everything after '--' goes to nextflow."""
     if "--" not in argv:
         return argv, []
     cut = argv.index("--")
@@ -340,7 +342,7 @@ def split_nextflow_args(argv):
 
 
 def main(argv=None):
-    """Entry point of the seqc2 command."""
+    """Entry point of the somref command."""
     argv, extra = split_nextflow_args(sys.argv[1:] if argv is None else list(argv))
     args = parser().parse_args(argv)
     args.nextflow_args = extra

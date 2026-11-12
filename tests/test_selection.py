@@ -2,7 +2,7 @@
 
 import pytest
 
-from seqc2_toolkit import catalog, dataset
+from somatic_refdata import catalog, dataset
 
 BASE = "https://example.org/seqc2"
 

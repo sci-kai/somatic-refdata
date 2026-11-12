@@ -1,4 +1,4 @@
-"""Catalog of the SEQC2 files: built from the server's md5 lists (sources.yaml).
+"""Catalog of the SEQC2 files: built from the server's md5 lists (sources_seqc2.yaml).
 
 Every VCF, BAM and BAM index of the paired tumor/normal series (WGS, WES) becomes one
 record with the fields parsed from its file name:
@@ -26,17 +26,17 @@ import yaml
 
 from . import net
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 
-SOURCES = {"seqc2": "sources.yaml", "hg008": "sources_hg008.yaml"}
+SOURCES = {"seqc2": "sources_seqc2.yaml", "hg008": "sources_hg008.yaml"}
 
 
 def load_sources(source="seqc2"):
     """The server description of a source (YAML file shipped with the package)."""
     if source not in SOURCES:
         raise ValueError(f"unknown source {source}; choose from {', '.join(SOURCES)}")
-    text = resources.files("seqc2_toolkit").joinpath(SOURCES[source]).read_text()
+    text = resources.files("somatic_refdata").joinpath(SOURCES[source]).read_text()
     return yaml.safe_load(text)
 
 

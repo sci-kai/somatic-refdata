@@ -3,7 +3,7 @@
 import pytest
 from test_selection import config, records
 
-from seqc2_toolkit import build, catalog, dataset
+from somatic_refdata import build, catalog, dataset
 
 
 def test_remote_facts(tmp_path):
@@ -48,7 +48,7 @@ def test_remote_local_target_bed(tmp_path):
     """data.target_bed: local writes a merged BED3 of the reference contigs (no network)."""
     import gzip
 
-    from seqc2_toolkit.cache import Cache
+    from somatic_refdata.cache import Cache
 
     sources = catalog.load_sources()
     cache = Cache(tmp_path / "cache")

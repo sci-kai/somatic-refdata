@@ -5,7 +5,7 @@
 
 base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG"
 
-# md5 lists of the server: they define the catalog of files (seqc2 catalog)
+# md5 lists of the server: they define the catalog of files (somref catalog)
 md5_lists:
   # all somatic VCFs, paths relative to analysis/SNVs/vcfs/
   vcf: {list: "analysis/SNVs/vcfs/all.md5", folder: "analysis/SNVs/vcfs"}

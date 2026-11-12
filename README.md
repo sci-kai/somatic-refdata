@@ -1,4 +1,4 @@
-# seqc2-toolkit
+# somatic-refdata
 
 Select, download and prepare public **somatic reference data** for testing and validating
 bioinformatics workflows, and write the samplesheets and parameters that the workflows
@@ -31,11 +31,11 @@ a *profile* and its dataset configs, kept apart and marked as such (see
 ## Install
 
 ```bash
-git clone https://github.com/core-unit-bioinformatics/seqc2-toolkit.git
-cd seqc2-toolkit
-conda env create -f envs/seqc2-toolkit.yaml   # python, pyyaml, samtools, bcftools, nextflow
-conda activate seqc2-toolkit                   # installs this package (pip -e) as well
-seqc2 --help
+git clone https://github.com/sci-kai/somatic-refdata.git
+cd somatic-refdata
+conda env create -f envs/somatic-refdata.yaml   # python, pyyaml, samtools, bcftools, nextflow
+conda activate somatic-refdata                   # installs this package (pip -e) as well
+somref --help
 ```
 
 Without conda: `pip install -e .` (Python >= 3.10; building datasets needs samtools,
@@ -44,17 +44,17 @@ bcftools, tabix and bgzip on `PATH`).
 ## Quick start
 
 ```bash
-seqc2 catalog                                  # what SEQC2 provides
-seqc2 catalog --source hg008                   # what GIAB HG008 provides
-seqc2 plan datasets/default.yaml               # what a config selects, sizes, cache state
-seqc2 fetch datasets/default.yaml --outdir data/default      # download + build
-seqc2 fetch datasets/hg008_small.yaml --outdir data/hg008_small
-seqc2 verify datasets/hg008_small.yaml --outdir data/hg008_small
-seqc2 samplesheet <config> --outdir <dataset> --profile <profile or FILE.yaml>
-seqc2 run <config> --outdir <dataset> --profile <profile> --nf-profile conda
+somref catalog                                  # what SEQC2 provides
+somref catalog --source hg008                   # what GIAB HG008 provides
+somref plan datasets/default.yaml               # what a config selects, sizes, cache state
+somref fetch datasets/default.yaml --outdir data/default      # download + build
+somref fetch datasets/hg008_small.yaml --outdir data/hg008_small
+somref verify datasets/hg008_small.yaml --outdir data/hg008_small
+somref samplesheet <config> --outdir <dataset> --profile <profile or FILE.yaml>
+somref run <config> --outdir <dataset> --profile <profile> --nf-profile conda
 ```
 
-The download cache is `$SEQC2_CACHE` or `~/.cache/seqc2` (`--cache`); genome-wide
+The download cache is `$SOMREF_CACHE` or `~/.cache/somref` (`--cache`); genome-wide
 datasets need several GB, BAMs 10-420 GB each, so use contig subsets and BAM windows for
 small tests.
 
@@ -64,7 +64,7 @@ small tests.
 |---|---|
 | [docs/sources.md](docs/sources.md) | what SEQC2 and HG008 provide: technologies, pairs/series, VCFs, truth sets, what is not covered |
 | [docs/datasets.md](docs/datasets.md) | dataset config reference (SEQC2, HG008), remote datasets, sample choice on the command line, sizes, cache and checksums, dataset folder layout |
-| [docs/profiles.md](docs/profiles.md) | workflow profiles: format, template variables, params.yaml / params.config, `seqc2 run` |
+| [docs/profiles.md](docs/profiles.md) | workflow profiles: format, template variables, params.yaml / params.config, `somref run` |
 | [docs/testing.md](docs/testing.md) | three test tiers for workflows: `test`, `test_full`, `test_full_offline` |
 | [CHANGELOG.md](CHANGELOG.md) | changes per version |
 
@@ -77,10 +77,10 @@ small tests.
 
 | Profile | Pipeline (revision) | Sources | Profile file | Dataset configs | Docs |
 |---|---|---|---|---|---|
-| `variantcomp` | [core-unit-bioinformatics/workflow-nxf-somatic-variantcomp](https://github.com/core-unit-bioinformatics/workflow-nxf-somatic-variantcomp) (`dev`) | SEQC2 | [`profiles/variantcomp.yaml`](src/seqc2_toolkit/profiles/variantcomp.yaml) | [`datasets/workflows/variantcomp/`](datasets/workflows/variantcomp) | [docs/workflows/variantcomp.md](docs/workflows/variantcomp.md) |
-| `variantinterpretation` | [cio-abcd/variantinterpretation](https://github.com/cio-abcd/variantinterpretation) (`v1.2.0`) | SEQC2, HG008 | [`profiles/variantinterpretation.yaml`](src/seqc2_toolkit/profiles/variantinterpretation.yaml) | [`datasets/workflows/variantinterpretation/`](datasets/workflows/variantinterpretation) | [docs/workflows/variantinterpretation.md](docs/workflows/variantinterpretation.md) |
+| `variantcomp` | [core-unit-bioinformatics/workflow-nxf-somatic-variantcomp](https://github.com/core-unit-bioinformatics/workflow-nxf-somatic-variantcomp) (`dev`) | SEQC2 | [`profiles/variantcomp.yaml`](src/somatic_refdata/profiles/variantcomp.yaml) | [`datasets/workflows/variantcomp/`](datasets/workflows/variantcomp) | [docs/workflows/variantcomp.md](docs/workflows/variantcomp.md) |
+| `variantinterpretation` | [cio-abcd/variantinterpretation](https://github.com/cio-abcd/variantinterpretation) (`v1.2.0`) | SEQC2, HG008 | [`profiles/variantinterpretation.yaml`](src/somatic_refdata/profiles/variantinterpretation.yaml) | [`datasets/workflows/variantinterpretation/`](datasets/workflows/variantinterpretation) | [docs/workflows/variantinterpretation.md](docs/workflows/variantinterpretation.md) |
 
-`seqc2 profiles` lists them with pipeline, homepage, configs and notes. Each profile file
+`somref profiles` lists them with pipeline, homepage, configs and notes. Each profile file
 starts with a `WORKFLOW-SPECIFIC PROFILE` header and names its pipeline in the `workflow`
 section. General examples are directly in `datasets/`: `default.yaml` (SEQC2 defaults),
 `hg008_default.yaml`, `hg008_small.yaml`.
@@ -88,14 +88,14 @@ section. General examples are directly in `datasets/`: `default.yaml` (SEQC2 def
 ## Repository layout
 
 ```
-src/seqc2_toolkit/            the toolkit (command line: seqc2)
-  sources.yaml                SEQC2 server description
+src/somatic_refdata/          the toolkit (command line: somref)
+  sources_seqc2.yaml          SEQC2 server description
   sources_hg008.yaml          GIAB HG008 server description
   profiles/                   WORKFLOW-SPECIFIC profiles (one file per pipeline)
 datasets/                     general example dataset configs
   workflows/<workflow>/       WORKFLOW-SPECIFIC dataset configs of the shipped profiles
 docs/                         documentation; docs/workflows/: workflow-specific pages
-envs/seqc2-toolkit.yaml       conda environment
+envs/somatic-refdata.yaml     conda environment
 tests/                        unit tests (no network)
 ```
 

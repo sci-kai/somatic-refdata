@@ -5,8 +5,8 @@ import json
 import pytest
 import yaml
 
-from seqc2_toolkit import profiles
-from seqc2_toolkit.dataset import ConfigError
+from somatic_refdata import profiles
+from somatic_refdata.dataset import ConfigError
 
 
 def make_dataset(tmp_path, bams=True):

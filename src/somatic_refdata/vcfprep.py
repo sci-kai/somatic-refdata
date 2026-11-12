@@ -9,7 +9,7 @@
 Both are for workflows that expect these properties (e.g. filters that index the samples
 by position, read-depth fields). Records that already have FORMAT/DP are kept unchanged; a
 sample with a missing AD value gets DP '.'. The header gets a FORMAT/DP definition (if
-missing) and a line ##seqc2_toolkit_vcf=... that documents the changes.
+missing) and a line ##somatic_refdata_vcf=... that documents the changes.
 
 bcftools was considered: 'bcftools view -s' reorders samples, but '+fill-tags' would
 overwrite an existing FORMAT/DP and has no per-record "only if missing" rule.
@@ -20,11 +20,11 @@ import logging
 
 from . import __version__
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 DP_HEADER = (
     '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth: sum of FORMAT/AD '
-    '(added by seqc2-toolkit)">'
+    '(added by somatic-refdata)">'
 )
 
 
@@ -70,7 +70,7 @@ def transform_lines(lines, sample_order=None, format_dp=False, source="<vcf>"):
             if format_dp:
                 changes.append("FORMAT/DP set to sum(FORMAT/AD) where missing")
             # unstructured header line (no <...>), so that htslib doesn't parse it
-            out.append(f"##seqc2_toolkit_vcf=seqc2-toolkit {__version__}; {'; '.join(changes)}")
+            out.append(f"##somatic_refdata_vcf=somatic-refdata {__version__}; {'; '.join(changes)}")
             out.append("\t".join(cols[:9] + [samples[i] for i in order]))
             continue
         if order is None:

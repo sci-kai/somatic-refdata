@@ -5,7 +5,7 @@ import gzip
 import pytest
 from test_selection import config, records
 
-from seqc2_toolkit import build, catalog, dataset, vcfprep
+from somatic_refdata import build, catalog, dataset, vcfprep
 
 HEADER = [
     "##fileformat=VCFv4.2",
@@ -22,7 +22,7 @@ def test_order_and_dp():
     ]
     out, stats = vcfprep.transform_lines(lines, ["NORMAL", "TUMOR"], True)
     assert out[1].startswith("##FORMAT=<ID=DP,")
-    assert out[2].startswith("##seqc2_toolkit_vcf=") and "sample order NORMAL TUMOR" in out[2]
+    assert out[2].startswith("##somatic_refdata_vcf=") and "sample order NORMAL TUMOR" in out[2]
     assert out[3].endswith("NORMAL\tTUMOR")
     assert out[4].split("\t")[8:] == ["GT:AD:DP", "0/0:9,0:9", "0/1:7,3:10"]
     assert out[5].split("\t")[8:] == ["GT:AD:DP", "0/0:2,0:4", "0/1:1,1:5"]

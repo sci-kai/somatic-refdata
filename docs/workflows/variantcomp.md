@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| Profile | `src/seqc2_toolkit/profiles/variantcomp.yaml` (`--profile variantcomp`) |
+| Profile | `src/somatic_refdata/profiles/variantcomp.yaml` (`--profile variantcomp`) |
 | Pipeline / revision | `core-unit-bioinformatics/workflow-nxf-somatic-variantcomp`, `dev` |
 | Sources | SEQC2 only (`accepts`: technologies WGS, WES; caller muTect2) |
 | Samplesheet | one row per VCF: `sample` (`SEQC2_<pair>`), technology, library type, tumor/normal ids, caller, VCF, BAMs, target BED |
@@ -29,7 +29,7 @@ technologies (SEQC2 WGS vs. WES; WGS is the reference), so each pair needs both.
 | `full.yaml` | (HPC) | local: first replicate of every center with WGS + WES, genome-wide, VCFs only |
 
 ```bash
-seqc2 fetch datasets/workflows/variantcomp/small.yaml --outdir data/variantcomp_small
-seqc2 run datasets/workflows/variantcomp/small.yaml --outdir data/variantcomp_small \
+somref fetch datasets/workflows/variantcomp/small.yaml --outdir data/variantcomp_small
+somref run datasets/workflows/variantcomp/small.yaml --outdir data/variantcomp_small \
     --profile variantcomp --pipeline ../workflow-nxf-somatic-variantcomp --nf-profile conda
 ```

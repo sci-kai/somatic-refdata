@@ -1,7 +1,7 @@
 """Build a dataset folder from the selection: download (cache), subset, index, describe.
 
 Every output file of the dataset has a recipe: its source (URL + server md5 if known) and
-the settings that shape it (contigs, BAM windows, ...). seqc2_manifest.json records the
+the settings that shape it (contigs, BAM windows, ...). somref_manifest.json records the
 recipe hash and the md5 of every output; an output is only rebuilt if its recipe changed
 or the file was modified. Outputs that the current config no longer produces are removed.
 
@@ -32,9 +32,9 @@ from . import __version__, net, vcfprep
 from .cache import file_state, md5sum
 from .dataset import ConfigError, as_list
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
-MANIFEST = "seqc2_manifest.json"
+MANIFEST = "somref_manifest.json"
 # unit fields of HG008 datasets copied into dataset.json (SEQC2 units don't have them)
 UNIT_EXTRAS = ("series", "platform", "aligner", "build", "library_type", "samples", "coverage")
 SEQC2_CITATION = (
@@ -60,7 +60,7 @@ def require_tools(*tools):
     missing = [t for t in tools if shutil.which(t) is None]
     if missing:
         raise RuntimeError(
-            f"missing tools on PATH: {', '.join(missing)} " "(conda env: envs/seqc2-toolkit.yaml)"
+            f"missing tools on PATH: {', '.join(missing)} " "(conda env: envs/somatic-refdata.yaml)"
         )
 
 
@@ -583,9 +583,9 @@ class Builder:
         lines = [
             f"# {self.sources.get('name', 'SEQC2')} dataset `{self.config['name']}`",
             "",
-            "Created by [seqc2-toolkit](https://github.com/core-unit-bioinformatics/seqc2-toolkit)"
+            "Created by [somatic-refdata](https://github.com/sci-kai/somatic-refdata)"
             f" {__version__} on {datetime.now().date().isoformat()}. Do not edit by hand;"
-            " change the dataset config and run `seqc2 fetch` again.",
+            " change the dataset config and run `somref fetch` again.",
             "",
             "## Settings",
             "",
@@ -759,11 +759,11 @@ def check_remote(config):
     problems = []
     if subset["bam_windows"] or subset["bam_subsample"]:
         problems.append(
-            "subset.bam_windows / bam_subsample: BAM slices are cut by seqc2 fetch (access: local)"
+            "subset.bam_windows / bam_subsample: BAM slices are cut by somref fetch (access: local)"
         )
     if any(config["vcf"].values()):
         problems.append(
-            "vcf.sample_order / vcf.format_dp: the VCFs are changed by seqc2 fetch (access: local)"
+            "vcf.sample_order / vcf.format_dp: the VCFs are changed by somref fetch (access: local)"
         )
     if config["data"]["bam"]:
         log.warning(
@@ -882,10 +882,10 @@ def write_remote(root, facts):
     lines = [
         f"# SEQC2 dataset `{facts['name']}` (remote)",
         "",
-        f"Created by seqc2-toolkit {__version__} on {datetime.now().date().isoformat()}."
+        f"Created by somatic-refdata {__version__} on {datetime.now().date().isoformat()}."
         " Nothing was downloaded: the workflow reads these files from their servers"
         " (internet access needed). Do not edit by hand; change the dataset config and run"
-        " `seqc2 fetch` again.",
+        " `somref fetch` again.",
         "",
         "Contigs the workflow should restrict the records to: "
         + (", ".join(facts["contigs"]) if facts["contigs"] else "all"),

@@ -61,12 +61,12 @@ import yaml
 
 from .dataset import ConfigError, merge
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 PROFILE_DEFAULTS = {
     "name": None,
     "description": "",
-    # the one workflow a profile is written for (shown by 'seqc2 profiles'): homepage,
+    # the one workflow a profile is written for (shown by 'somref profiles'): homepage,
     # folder of its dataset configs, notes on revisions or required pipeline params
     "workflow": {"url": None, "configs": None, "notes": None},
     "pipeline": None,
@@ -93,7 +93,7 @@ LIBRARY_TYPE = {"WGS": "wgs", "WES": "capture"}
 
 def shipped_profiles():
     """Names of the profiles shipped with the toolkit (profiles/*.yaml in the package)."""
-    folder = resources.files("seqc2_toolkit").joinpath("profiles")
+    folder = resources.files("somatic_refdata").joinpath("profiles")
     return sorted(
         p.name.removesuffix(".yaml") for p in folder.iterdir() if p.name.endswith(".yaml")
     )
@@ -105,7 +105,7 @@ def load_profile(name_or_path):
     if path.suffix in (".yaml", ".yml") and path.exists():
         text, where = path.read_text(), str(path)
     else:
-        resource = resources.files("seqc2_toolkit").joinpath("profiles", f"{name_or_path}.yaml")
+        resource = resources.files("somatic_refdata").joinpath("profiles", f"{name_or_path}.yaml")
         if not resource.is_file():
             raise ConfigError(
                 f"profile '{name_or_path}' not found; shipped profiles: "
@@ -349,7 +349,7 @@ def write(profile, dataset_dir, workdir=None, config_base=None):
     params_path = workdir / "params.yaml"
     header = (
         f"# Parameters of {profile['name']} for the {dataset_values['source_name']} dataset "
-        f"{facts['name']} (seqc2-toolkit)\n"
+        f"{facts['name']} (somatic-refdata)\n"
     )
     yaml_params = params
     if config_base:
@@ -381,7 +381,7 @@ def write(profile, dataset_dir, workdir=None, config_base=None):
     config_path = workdir / "params.config"
     config_path.write_text(
         f"// Parameters of {profile['name']} for the SEQC2 dataset {facts['name']} "
-        "(seqc2-toolkit; do not edit, regenerate with seqc2 samplesheet)\n"
+        "(somatic-refdata; do not edit, regenerate with somref samplesheet)\n"
         + nextflow_params(params, workdir, config_base)
     )
     written.append(config_path)

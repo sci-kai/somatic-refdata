@@ -1,5 +1,5 @@
 [project]
-name = "seqc2-toolkit"
+name = "somatic-refdata"
 version = "0.1.0-dev"
 description = "Select, download and prepare somatic reference data (SEQC2 HCC1395, GIAB HG008) for testing workflows"
 readme = "README.md"
@@ -16,16 +16,16 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/core-unit-bioinformatics/seqc2-toolkit"
-Documentation = "https://github.com/core-unit-bioinformatics/seqc2-toolkit/tree/main/docs"
-Changelog = "https://github.com/core-unit-bioinformatics/seqc2-toolkit/blob/main/CHANGELOG.md"
-Issues = "https://github.com/core-unit-bioinformatics/seqc2-toolkit/issues"
+Homepage = "https://github.com/sci-kai/somatic-refdata"
+Documentation = "https://github.com/sci-kai/somatic-refdata/tree/main/docs"
+Changelog = "https://github.com/sci-kai/somatic-refdata/blob/main/CHANGELOG.md"
+Issues = "https://github.com/sci-kai/somatic-refdata/issues"
 
 [project.optional-dependencies]
 dev = ["pytest", "black", "ruff"]
 
 [project.scripts]
-seqc2 = "seqc2_toolkit.cli:main"
+somref = "somatic_refdata.cli:main"
 
 [build-system]
 requires = ["setuptools>=64"]
@@ -35,7 +35,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-seqc2_toolkit = ["sources.yaml", "sources_hg008.yaml", "profiles/*.yaml"]
+somatic_refdata = ["sources_seqc2.yaml", "sources_hg008.yaml", "profiles/*.yaml"]
 
 [tool.black]
 line-length = 100

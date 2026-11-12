@@ -8,22 +8,22 @@ the workflow's [profile](profiles.md)).
 |---|---|---|---|---|
 | `test` | a fraction of one sample: one pair, records of one contig (chr21) | yes | does the pipeline run through (setup check) | `access: remote`, `subset.contigs: [chr21]` |
 | `test_full` | every record of one sample (IL_1) | yes | the same on a full sample | `access: remote` |
-| `test_full_offline` | one to all SEQC2 samples (or HG008 series), chosen by the user | no (after `seqc2 fetch`) | validation on an offline HPC | `access: local` + `--pairs` / `--centers` |
+| `test_full_offline` | one to all SEQC2 samples (or HG008 series), chosen by the user | no (after `somref fetch`) | validation on an offline HPC | `access: local` + `--pairs` / `--centers` |
 
 Remote datasets (`test`, `test_full`) are SEQC2 only; HG008 datasets are always built
-locally (`seqc2 fetch`).
+locally (`somref fetch`).
 
 ```bash
 # test / test_full: remote datasets; the files are committed into the pipeline (assets/)
-seqc2 samplesheet datasets/workflows/variantinterpretation/test.yaml \
+somref samplesheet datasets/workflows/variantinterpretation/test.yaml \
     --profile variantinterpretation \
     --workdir ../variantinterpretation/assets/seqc2/test \
     --config-base '${projectDir}/assets/seqc2/test'
 
 # test_full_offline: download, prepare, write the workflow files into the dataset folder
-seqc2 fetch datasets/workflows/variantinterpretation/offline.yaml --outdir data/vi \
+somref fetch datasets/workflows/variantinterpretation/offline.yaml --outdir data/vi \
     --pairs IL_1,FD_1,NV_1
-seqc2 samplesheet datasets/workflows/variantinterpretation/offline.yaml --outdir data/vi \
+somref samplesheet datasets/workflows/variantinterpretation/offline.yaml --outdir data/vi \
     --pairs IL_1,FD_1,NV_1 --profile variantinterpretation
 nextflow run <pipeline> -profile test_full_offline,singularity \
     --pipelines_testdata_base_path data/vi/

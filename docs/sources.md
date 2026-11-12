@@ -1,7 +1,7 @@
 # Reference data sources
 
 The toolkit knows two public somatic reference datasets. A dataset config chooses one with
-the top-level key `source` (default `seqc2`); `seqc2 catalog [--source hg008]` shows what the
+the top-level key `source` (default `seqc2`); `somref catalog [--source hg008]` shows what the
 server provides right now (built from the server's md5 lists).
 
 | | SEQC2 (`source: seqc2`) | GIAB HG008 (`source: hg008`) |
@@ -12,7 +12,7 @@ server provides right now (built from the server's md5 lists).
 | Somatic VCFs | 3 aligners x 3 callers per pair | MuTect2, Strelka2 (Illumina), DeepSomatic (HiFi) |
 | Truth set | SEQC2 high-confidence somatic SNVs/indels v1.2, v1.2.1 | GIAB draft benchmarks: small variants v0.4, SVs v0.6 |
 | Server | NCBI FTP `ReferenceSamples/seqc/Somatic_Mutation_WG` | NCBI FTP `ReferenceSamples/giab/data_somatic/HG008` |
-| Description | `src/seqc2_toolkit/sources.yaml` | `src/seqc2_toolkit/sources_hg008.yaml` |
+| Description | `src/somatic_refdata/sources_seqc2.yaml` | `src/somatic_refdata/sources_hg008.yaml` |
 
 Both are public reference data; check the data use and citation notes of the providers
 (see [Citation](../README.md#citation)).

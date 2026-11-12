@@ -2,11 +2,11 @@
 
 The toolkit itself knows nothing about a specific workflow. A **profile** is a small YAML
 file that says how one workflow takes a dataset: which samplesheet (one row per VCF, per
-pair x technology or per alignment), which params, which extra files. `seqc2 samplesheet`
-writes them into `<dataset>/<profile name>/` (or `--workdir`); `seqc2 run` also runs
+pair x technology or per alignment), which params, which extra files. `somref samplesheet`
+writes them into `<dataset>/<profile name>/` (or `--workdir`); `somref run` also runs
 Nextflow.
 
-Two profiles are shipped, each written for one pipeline (`seqc2 profiles` lists them;
+Two profiles are shipped, each written for one pipeline (`somref profiles` lists them;
 [README](../README.md#workflow-specific-profiles-and-configs)). For any other workflow
 write your own profile and pass the file: `--profile path/to/myworkflow.yaml`. Copying a
 shipped profile is a good start.
@@ -15,7 +15,7 @@ shipped profile is a good start.
 
 ```yaml
 name: myworkflow                           # default: the file name
-description: what the workflow does        # shown by 'seqc2 profiles'
+description: what the workflow does        # shown by 'somref profiles'
 workflow:                                  # optional: the workflow the profile is for
   url: https://github.com/org/myworkflow   #   homepage
   configs: datasets/workflows/myworkflow/  #   its dataset configs
@@ -68,7 +68,7 @@ Templates are Python format strings (`{variable}`).
 An empty variable gives `missing` (`n/a`) in a samplesheet column, leaves a param out, and
 is an error in an extra file. Rendered params `true` / `false` become booleans.
 
-## params.yaml, params.config and seqc2 run
+## params.yaml, params.config and somref run
 
 Next to `params.yaml`, `params.config` holds the same params as a Nextflow config, for `-c`
 or for `includeConfig` in a test profile of the workflow. Local files of the workflow folder
@@ -77,7 +77,7 @@ Nextflow expression given with `--config-base`, e.g. `'${projectDir}/assets/seqc
 files committed into a pipeline, or `"${params.pipelines_testdata_base_path}myworkflow"` for
 a dataset folder that is moved.
 
-`seqc2 run` writes the workflow files, a params file with absolute paths into the run
+`somref run` writes the workflow files, a params file with absolute paths into the run
 folder and runs
 
 ```

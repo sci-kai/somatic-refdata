@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 # CA bundles of common Linux distributions (Debian/Ubuntu, RHEL/Fedora, openSUSE, Alpine)
 SYSTEM_CA_BUNDLES = [

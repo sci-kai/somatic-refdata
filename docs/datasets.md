@@ -1,8 +1,8 @@
 # Dataset configs and dataset folders
 
-A dataset config is a YAML file that says which reference data a test needs. `seqc2 plan`
-shows what it selects, `seqc2 fetch` builds the dataset folder, `seqc2 samplesheet` /
-`seqc2 run` turn the folder into the inputs of a workflow ([profiles.md](profiles.md)).
+A dataset config is a YAML file that says which reference data a test needs. `somref plan`
+shows what it selects, `somref fetch` builds the dataset folder, `somref samplesheet` /
+`somref run` turn the folder into the inputs of a workflow ([profiles.md](profiles.md)).
 
 Every key is optional; everything left out takes the default. Unknown keys, unknown values
 (e.g. a misspelled caller) and combinations that the source doesn't provide (e.g. SEQC2 NS
@@ -17,7 +17,7 @@ are in `datasets/workflows/<workflow>/` (see the [README](../README.md#workflow-
 
 ```yaml
 source: seqc2             # seqc2 (default) or hg008 (next section)
-access: local             # local: download and build (seqc2 fetch); remote: see below
+access: local             # local: download and build (somref fetch); remote: see below
 select:
   technologies: [WGS]     # WGS and/or WES
   centers: [IL]           # sequencing centers, or all
@@ -46,7 +46,7 @@ vcf:                      # optional changes of the VCFs (local datasets only)
   format_dp: false        # add FORMAT/DP = sum(FORMAT/AD) where a record has none
 name: null                # default: the config file name
 outdir: null              # default: ./<name>; relative to the config file
-cache: null               # default: $SEQC2_CACHE or ~/.cache/seqc2
+cache: null               # default: $SOMREF_CACHE or ~/.cache/somref
 ```
 
 **Default (empty config):** WGS of one center and replicate, IL_1, aligned with bwa and
@@ -55,7 +55,7 @@ called with MuTect2; VCF, reference and truth set, genome-wide.
 `vcf` is for workflows that expect a sample order (e.g. filters that index the samples by
 position) or a read depth per sample: the SEQC2 MuTect2 (GATK 3.8) records have no
 FORMAT/DP. Records with FORMAT/DP are kept; the header documents the change
-(`##seqc2_toolkit_vcf=...`).
+(`##somatic_refdata_vcf=...`).
 
 ## HG008 config (`source: hg008`)
 
@@ -96,22 +96,22 @@ same options for `fetch` and `samplesheet`: `samplesheet` stops if the dataset f
 built with another selection.
 
 ```bash
-seqc2 fetch datasets/workflows/variantcomp/offline.yaml --pairs IL_1,FD_1,NV_1   # three pairs
-seqc2 fetch datasets/workflows/variantcomp/offline.yaml --centers all            # first replicate of every center
-seqc2 fetch datasets/workflows/variantinterpretation/offline.yaml --centers all --replicates all --technologies WES,WGS
+somref fetch datasets/workflows/variantcomp/offline.yaml --pairs IL_1,FD_1,NV_1   # three pairs
+somref fetch datasets/workflows/variantcomp/offline.yaml --centers all            # first replicate of every center
+somref fetch datasets/workflows/variantinterpretation/offline.yaml --centers all --replicates all --technologies WES,WGS
 ```
 
 ## Remote datasets (`access: remote`, SEQC2)
 
-Nothing is downloaded (except the server's md5 lists for the catalog). `seqc2 fetch` (or
-`seqc2 samplesheet` directly) writes only `dataset.json` and `README.md`; every file in the
+Nothing is downloaded (except the server's md5 lists for the catalog). `somref fetch` (or
+`somref samplesheet` directly) writes only `dataset.json` and `README.md`; every file in the
 samplesheet and params is a URL that the workflow reads itself (Nextflow stages it):
 
 - VCFs: the original SEQC2 files (plain gzip, not bgzip, no index; sample columns TUMOR,
   NORMAL; all contigs). The workflow must accept plain gzip.
 - Reference: without `subset.contigs` the whole GRCh38.d1.vd1 FASTA (3.2 GB). With
   `subset.contigs` a smaller online reference with exactly these contigs
-  (`remote_references` in `sources.yaml`; currently `chr21` from nf-core/test-datasets,
+  (`remote_references` in `sources_seqc2.yaml`; currently `chr21` from nf-core/test-datasets,
   sequence identical to GRCh38.d1.vd1). The VCFs still hold every contig: the workflow has
   to drop the other records (template variable `{contigs}`, e.g. `bcftools view --targets`).
 - Target BED, truth set, GENCODE GTF, GIAB files: the original files (URLs).
@@ -140,11 +140,11 @@ samplesheet and params is a URL that the workflow reads itself (Nextflow stages 
   stratifications). `<cache>/registry.json` records size, time and md5 of every cached
   file, so it is not hashed again unless it changed (`--verify` hashes everything again).
 - The dataset folder holds the derived files (bgzipped and indexed VCFs, subsets, BAM
-  slices, ...). `seqc2_manifest.json` records the recipe (source, md5, settings) and md5
-  of each; `seqc2 fetch` rebuilds only files whose recipe changed or that were modified,
+  slices, ...). `somref_manifest.json` records the recipe (source, md5, settings) and md5
+  of each; `somref fetch` rebuilds only files whose recipe changed or that were modified,
   and removes files that the config no longer selects.
 - `checksums.md5`, `README.md` (sources, settings, citation) and `dataset.json` (the
-  dataset for profiles) are written into the dataset folder. `seqc2 verify` checks every
+  dataset for profiles) are written into the dataset folder. `somref verify` checks every
   file.
 - HTTPS: downloads are done in Python; the CA bundle is taken from `--ca-bundle`,
   `$CURL_CA_BUNDLE`, `$SSL_CERT_FILE`, the Python package certifi or the system paths, and
@@ -163,8 +163,8 @@ bam/<pair>_<technology>_<T|N>.bam  (+ .bam.bai)
 truth/high-confidence_sSNV|sINDEL_in_HC_regions_<release>.vcf.gz, High-Confidence_Regions_*.bed
 annotation/gencode.v<release>.basic.annotation.gtf.gz (+ .tbi)
 annotation/giab/GRCh38/<GIAB release path>
-dataset.json, checksums.md5, README.md, seqc2_manifest.json
-<profile>/samplesheet.csv, params.yaml, params.config, ...   (seqc2 samplesheet / run)
+dataset.json, checksums.md5, README.md, somref_manifest.json
+<profile>/samplesheet.csv, params.yaml, params.config, ...   (somref samplesheet / run)
 ```
 
 HG008, where it differs:

@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from seqc2_toolkit import catalog, dataset, hg008, profiles
-from seqc2_toolkit.dataset import ConfigError
+from somatic_refdata import catalog, dataset, hg008, profiles
+from somatic_refdata.dataset import ConfigError
 
 # md5 lists of the server (folder name -> lines), in the formats seen on the server
 MD5_LISTS = {

@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| Profile | `src/seqc2_toolkit/profiles/variantinterpretation.yaml` (`--profile variantinterpretation`) |
+| Profile | `src/somatic_refdata/profiles/variantinterpretation.yaml` (`--profile variantinterpretation`) |
 | Pipeline / revision | `cio-abcd/variantinterpretation`, `v1.2.0` |
 | Sources | SEQC2 and HG008 (`accepts`: caller muTect2; allele fractions from FORMAT/AD) |
 | Samplesheet | one row per VCF: `sample` (`<SEQC2\|HG008>_<pair>_<tech>_<aligner>_<caller>`), `vcf`, `group` (`<SEQC2\|HG008>_<pair>`) |
@@ -31,7 +31,7 @@ The pipeline has this param only since its development branch `feat-seqc2-tests`
 | `hg008_small.yaml` | (CI / laptop) | local HG008: NYGC MuTect2 VCF (T vs N-D), chr22, GRCh38-GIABv3, GENCODE 46 |
 
 ```bash
-seqc2 fetch datasets/workflows/variantinterpretation/hg008_small.yaml --outdir data/vi_hg008
-seqc2 run datasets/workflows/variantinterpretation/hg008_small.yaml --outdir data/vi_hg008 \
+somref fetch datasets/workflows/variantinterpretation/hg008_small.yaml --outdir data/vi_hg008
+somref run datasets/workflows/variantinterpretation/hg008_small.yaml --outdir data/vi_hg008 \
     --profile variantinterpretation --nf-profile singularity -- --vep_cache /path/to/vep_cache
 ```

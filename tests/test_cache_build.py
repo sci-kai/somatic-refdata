@@ -7,8 +7,8 @@ import threading
 
 import pytest
 
-from seqc2_toolkit import build, net
-from seqc2_toolkit.cache import Cache
+from somatic_refdata import build, net
+from somatic_refdata.cache import Cache
 
 
 @pytest.fixture()

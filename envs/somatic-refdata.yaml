@@ -1,4 +1,4 @@
-name: seqc2-toolkit
+name: somatic-refdata
 channels:
   - conda-forge
   - bioconda
@@ -10,7 +10,7 @@ dependencies:
   - samtools=1.24
   - bcftools=1.24
   - htslib=1.24
-  # seqc2 run
+  # somref run
   - nextflow
   # development
   - pytest

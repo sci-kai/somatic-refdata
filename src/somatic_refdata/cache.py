@@ -1,7 +1,7 @@
 """Download cache shared by all datasets: every remote file is downloaded once.
 
 Layout: <cache>/<host>/<path of the URL>, e.g.
-  ~/.cache/seqc2/ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/.../WGS_IL_1.bwa.muTect2.vcf.gz
+  ~/.cache/somref/ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/.../WGS_IL_1.bwa.muTect2.vcf.gz
 
 <cache>/registry.json records for every cached file its size, modification time and md5,
 and whether the md5 was checked against the server's md5 list. A file whose size and
@@ -18,12 +18,12 @@ from urllib.parse import urlparse
 
 from . import net
 
-log = logging.getLogger("seqc2")
+log = logging.getLogger("somref")
 
 
 def default_cache_dir():
-    """Cache folder: $SEQC2_CACHE, else ~/.cache/seqc2."""
-    return Path(os.environ.get("SEQC2_CACHE") or Path.home() / ".cache" / "seqc2")
+    """Cache folder: $SOMREF_CACHE, else ~/.cache/somref."""
+    return Path(os.environ.get("SOMREF_CACHE") or Path.home() / ".cache" / "seqc2")
 
 
 def md5sum(path, chunk=1 << 20):
