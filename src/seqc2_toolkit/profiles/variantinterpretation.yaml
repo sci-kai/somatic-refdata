@@ -1,9 +1,21 @@
-# cio-abcd/variantinterpretation: annotation (Ensembl VEP), filtering, TSV/HTML reports and
-# TMB of VCFs. One samplesheet row per VCF. The VEP cache is not SEQC2 data: give it with
+# =====================================================================================
+# WORKFLOW-SPECIFIC PROFILE: variantinterpretation
+# Pipeline: cio-abcd/variantinterpretation
+# Writes the samplesheet and params of this one pipeline. Not a general format: for
+# another workflow copy this file, adapt it and pass it with --profile.
+# =====================================================================================
+# The pipeline annotates (Ensembl VEP), filters and reports VCFs (TSV/HTML, TMB). One
+# samplesheet row per VCF. The VEP cache is not SEQC2/HG008 data: give it with
 # --vep_cache (and --vep_cache_version, 115 for v1.2.0) on the run command line or in an
-# extra config (-c).
+# extra config (-c). Dataset configs: datasets/workflows/variantinterpretation/.
 name: variantinterpretation
 description: annotate and report somatic VCFs with Ensembl VEP and datavzrd (cio-abcd)
+workflow:
+  url: https://github.com/cio-abcd/variantinterpretation
+  configs: datasets/workflows/variantinterpretation/
+  notes: >-
+    SEQC2 and HG008 MuTect2 VCFs. Remote datasets set the param recompress_vcf, which the
+    pipeline has only since its branch feat-seqc2-tests (not in v1.2.0).
 pipeline: cio-abcd/variantinterpretation
 revision: v1.2.0
 nf_profile: conda

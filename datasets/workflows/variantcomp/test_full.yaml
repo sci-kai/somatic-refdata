@@ -1,6 +1,7 @@
 # Online full test of workflow-nxf-somatic-variantcomp (-profile test_full): every record
 # of the WGS and WES MuTect2 VCFs of IL_1 and the whole GRCh38.d1.vd1 reference (3.2 GB),
 # read by the pipeline from the SEQC2 server.
+name: variantcomp_test_full  # dataset name (default: the file name)
 access: remote
 select:
   technologies: [WGS, WES]

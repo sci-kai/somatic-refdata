@@ -1,4 +1,5 @@
 # Small dataset for cio-abcd/variantinterpretation: WES of IL_1, chr22, MuTect2 VCF.
+name: variantinterpretation_small  # dataset name (default: the file name)
 select:
   technologies: [WES]
   pairs: [IL_1]

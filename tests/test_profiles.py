@@ -213,3 +213,23 @@ def test_nextflow_params_quoting(tmp_path):
     # only the base expression is interpolated
     assert 'f = "${base}/a b\\$c.csv"' in text
     assert "u = 's3://b/k'" in text
+
+
+def test_shipped_profiles_name_their_workflow():
+    """Every shipped profile is workflow-specific: it names its pipeline and configs."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for name in profiles.shipped_profiles():
+        profile = profiles.load_profile(name)
+        assert profile["pipeline"] and profile["workflow"]["url"].startswith("https://")
+        assert (root / profile["workflow"]["configs"]).is_dir()
+
+
+def test_profile_workflow_keys_are_checked(tmp_path):
+    path = tmp_path / "mine.yaml"
+    path.write_text("workflow: {homepage: https://example.org}\n")
+    with pytest.raises(ConfigError, match="unknown key.*homepage"):
+        profiles.load_profile(path)
+    path.write_text("samplesheet: {columns: {vcf: '{vcf}'}}\n")
+    assert profiles.load_profile(path)["workflow"]["url"] is None

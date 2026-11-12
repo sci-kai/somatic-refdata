@@ -132,3 +132,16 @@ def test_access_value(tmp_path):
     assert config(tmp_path, "{}")["access"] == "local"
     with pytest.raises(dataset.ConfigError, match="access must be"):
         config(tmp_path, "access: online\n")
+
+
+def test_example_configs_load():
+    """Every example config in datasets/ loads; moved workflow configs keep their names."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "datasets"
+    configs = sorted(root.rglob("*.yaml"))
+    assert len(configs) >= 13
+    for path in configs:
+        config = dataset.load(path)
+        if path.parent.parent.name == "workflows":
+            assert config["name"].startswith((path.parent.name, f"hg008_{path.parent.name}")), path

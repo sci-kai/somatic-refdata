@@ -14,12 +14,13 @@ Examples
   seqc2 catalog --source hg008
   seqc2 plan datasets/default.yaml
   seqc2 plan datasets/hg008_small.yaml
-  seqc2 fetch datasets/variantcomp_small.yaml --outdir data/small
-  seqc2 fetch datasets/variantinterpretation_offline.yaml --pairs IL_1,FD_1,NV_1
-  seqc2 samplesheet datasets/variantinterpretation_test.yaml --profile variantinterpretation \\
-      --workdir assets/seqc2/test --config-base '${projectDir}/assets/seqc2/test'
-  seqc2 samplesheet datasets/variantcomp_small.yaml --profile variantcomp
-  seqc2 run datasets/variantcomp_small.yaml --profile variantcomp \\
+  seqc2 fetch datasets/workflows/variantcomp/small.yaml --outdir data/small
+  seqc2 fetch datasets/workflows/variantinterpretation/offline.yaml --pairs IL_1,FD_1,NV_1
+  seqc2 samplesheet datasets/workflows/variantinterpretation/test.yaml \\
+      --profile variantinterpretation --workdir assets/seqc2/test \\
+      --config-base '${projectDir}/assets/seqc2/test'
+  seqc2 samplesheet datasets/workflows/variantcomp/small.yaml --profile variantcomp
+  seqc2 run datasets/workflows/variantcomp/small.yaml --profile variantcomp \\
       --pipeline ../workflow-nxf-somatic-variantcomp --nf-profile conda
 """
 
@@ -230,10 +231,21 @@ def cmd_verify(args):
 
 
 def cmd_profiles(_args):
-    """List the shipped workflow profiles."""
+    """List the shipped workflow profiles: each one is specific to one pipeline."""
+    print(
+        "Shipped profiles (WORKFLOW-SPECIFIC: each one writes the inputs of one pipeline;\n"
+        "for other workflows write your own profile and pass it with --profile FILE.yaml):\n"
+    )
     for name in profiles.shipped_profiles():
         profile = profiles.load_profile(name)
+        workflow = profile["workflow"]
+        revision = f" (revision {profile['revision']})" if profile["revision"] else ""
         print(f"{name}: {profile['description']}")
+        print(f"  pipeline:        {profile['pipeline']}{revision}")
+        for key, label in (("url", "homepage"), ("configs", "dataset configs"), ("notes", "notes")):
+            if workflow[key]:
+                print(f"  {label + ':':<16} {' '.join(str(workflow[key]).split())}")
+        print()
 
 
 def parser():

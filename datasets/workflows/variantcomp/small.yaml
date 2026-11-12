@@ -1,5 +1,6 @@
 # Small WGS + WES dataset for the vcf-comp pipeline (test profile test_seqc2):
 # three centers, chr22 only, BAM slices of two 1-Mb windows, about 150 MB.
+name: variantcomp_small  # dataset name (default: the file name)
 select:
   technologies: [WGS, WES]
   pairs: [IL_1, FD_1, NV_1]

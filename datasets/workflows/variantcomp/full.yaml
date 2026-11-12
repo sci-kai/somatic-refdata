@@ -1,5 +1,6 @@
 # Full WGS + WES comparison for an HPC: the first replicate of every center that sequenced
 # both technologies, genome-wide, VCFs only (add data.bam: true for the 10-160 GB BAMs).
+name: variantcomp_full  # dataset name (default: the file name)
 select:
   technologies: [WGS, WES]
   centers: all

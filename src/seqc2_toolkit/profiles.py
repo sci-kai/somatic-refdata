@@ -66,6 +66,9 @@ log = logging.getLogger("seqc2")
 PROFILE_DEFAULTS = {
     "name": None,
     "description": "",
+    # the one workflow a profile is written for (shown by 'seqc2 profiles'): homepage,
+    # folder of its dataset configs, notes on revisions or required pipeline params
+    "workflow": {"url": None, "configs": None, "notes": None},
     "pipeline": None,
     "revision": None,
     "nf_profile": None,

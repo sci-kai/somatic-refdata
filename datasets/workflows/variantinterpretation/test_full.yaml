@@ -1,6 +1,7 @@
 # Online full test of cio-abcd/variantinterpretation (-profile test_full): every record of
 # the MuTect2 VCF of WES IL_1 (19,520 records) and the whole GRCh38.d1.vd1 reference
 # (3.2 GB), read by the pipeline from the SEQC2 server. Needs a full VEP cache.
+name: variantinterpretation_test_full  # dataset name (default: the file name)
 access: remote
 select:
   technologies: [WES]

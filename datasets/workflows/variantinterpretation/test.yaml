@@ -2,6 +2,7 @@
 # downloaded by the toolkit; the pipeline reads the MuTect2 VCF of WES IL_1 (19,520
 # records, 1 MB, plain gzip) from the SEQC2 server and the GRCh38 chr21 FASTA from
 # nf-core/test-datasets. The pipeline keeps only the records on chr21 (contigs).
+name: variantinterpretation_test  # dataset name (default: the file name)
 access: remote
 select:
   technologies: [WES]

@@ -1,8 +1,18 @@
-# core-unit-bioinformatics/workflow-nxf-somatic-variantcomp: compares somatic VCFs of the
-# same tumor/normal pair sequenced with different technologies (here SEQC2 WGS vs. WES).
-# Needs at least two technologies per pair, e.g. datasets/variantcomp_small.yaml.
+# =====================================================================================
+# WORKFLOW-SPECIFIC PROFILE: variantcomp
+# Pipeline: core-unit-bioinformatics/workflow-nxf-somatic-variantcomp
+# Writes the samplesheet, params and extra files of this one pipeline. Not a general
+# format: for another workflow copy this file, adapt it and pass it with --profile.
+# =====================================================================================
+# The pipeline compares somatic VCFs of the same tumor/normal pair sequenced with
+# different technologies (here SEQC2 WGS vs. WES). It needs at least two technologies per
+# pair; dataset configs: datasets/workflows/variantcomp/ (e.g. small.yaml).
 name: variantcomp
 description: compare somatic VCFs of one tumor/normal pair across technologies (WGS truth)
+workflow:
+  url: https://github.com/core-unit-bioinformatics/workflow-nxf-somatic-variantcomp
+  configs: datasets/workflows/variantcomp/
+  notes: SEQC2 only (WGS + WES of the same pairs, MuTect2 VCFs with FORMAT/AD or AF).
 pipeline: core-unit-bioinformatics/workflow-nxf-somatic-variantcomp
 revision: dev
 nf_profile: conda

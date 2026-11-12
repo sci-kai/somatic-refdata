@@ -2,6 +2,7 @@
 # IL_1 (one pseudo-sample, two technologies), MuTect2 VCFs read by the pipeline from the
 # SEQC2 server, GRCh38 chr21 FASTA from nf-core/test-datasets; the pipeline drops the
 # records of the other contigs. No BAMs, no annotation resources; the WES target BED is a local file.
+name: variantcomp_test  # dataset name (default: the file name)
 access: remote
 select:
   technologies: [WGS, WES]
