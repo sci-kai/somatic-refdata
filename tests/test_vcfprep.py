@@ -1,6 +1,7 @@
 """Optional VCF changes of local datasets: sample order, FORMAT/DP from AD."""
 
 import gzip
+import shutil
 
 import pytest
 from test_selection import config, records
@@ -55,3 +56,88 @@ def test_vcf_options_need_local_access(tmp_path):
     cfg = config(tmp_path, "access: remote\nvcf:\n  format_dp: true\n")
     with pytest.raises(dataset.ConfigError, match="access: local"):
         build.remote_facts(cfg, dataset.select(cfg, records()), catalog.load_sources())
+
+
+# header repair and sort check (SEQC2 Strelka VCFs: SNVs + indels concatenated) ------------
+
+STRELKA_LIKE = [
+    "##fileformat=VCFv4.1",
+    "##contig=<ID=chr1>",
+    "##contig=<ID=chr2>",
+    '##INFO=<ID=DP,Number=1,Type=Integer,Description="depth">',
+    '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="depth">',
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tNORMAL\tTUMOR",
+    # SNV block
+    "chr1\t10\t.\tA\tG\t.\tPASS\tDP=5\tDP\t5\t6",
+    "chr2\t20\t.\tA\tG\t.\tPASS\tDP=7\tDP\t7\t8",
+    # indel block: chr1 again, keys not in the header
+    "chr1\t15\t.\tAT\tA\t.\tPASS\tQSI=7;RU=T;OVERLAP;SOR=1.5\tDP:TAR:DP50\t9:1,2:3.5\t9:3,4:.",
+]
+
+
+def write_vcf(path, lines):
+    with gzip.open(path, "wt") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return path
+
+
+def test_scan_vcf_finds_undefined_keys_and_concatenated_blocks(tmp_path):
+    found = vcfprep.scan_vcf(write_vcf(tmp_path / "x.vcf.gz", STRELKA_LIKE))
+    assert found["unsorted"] and found["records"] == 3
+    types = {vcfprep.key_of(m): m.split(",")[1:3] for m in found["missing"]}
+    assert types == {
+        "INFO/QSI": ["Number=1", "Type=Integer"],
+        "INFO/RU": ["Number=1", "Type=String"],
+        "INFO/OVERLAP": ["Number=0", "Type=Flag"],
+        "INFO/SOR": ["Number=1", "Type=Float"],
+        "FORMAT/TAR": ["Number=.", "Type=Integer"],
+        "FORMAT/DP50": ["Number=1", "Type=Float"],
+    }
+    text = vcfprep.header_with(found["header"], found["missing"]).splitlines()
+    assert text[-1].startswith("#CHROM") and text[-2].startswith("##FORMAT=<ID=DP50,")
+
+
+def test_scan_vcf_of_a_valid_vcf_finds_nothing(tmp_path):
+    lines = STRELKA_LIKE[:6] + [
+        "chr1\t10\t.\tA\tG\t.\tPASS\tDP=5\tDP\t5\t6",
+        "chr1\t10\t.\tA\tT\t.\tPASS\tDP=5\tDP\t5\t6",
+        "chr2\t3\t.\tA\tG\t.\tPASS\t.\tDP\t7\t8",
+    ]
+    found = vcfprep.scan_vcf(write_vcf(tmp_path / "x.vcf.gz", lines))
+    assert not found["unsorted"] and found["missing"] == [] and found["records"] == 3
+    # positions going back within a chromosome
+    lines[-1] = "chr1\t3\t.\tA\tG\t.\tPASS\t.\tDP\t7\t8"
+    assert vcfprep.scan_vcf(write_vcf(tmp_path / "y.vcf.gz", lines))["unsorted"]
+
+
+def test_mixed_flag_and_value_is_a_string():
+    table = {}
+    vcfprep._note_value(table, "X", None)
+    vcfprep._note_value(table, "X", "3")
+    assert vcfprep._definition("INFO", "X", table["X"]).startswith(
+        "##INFO=<ID=X,Number=.,Type=String"
+    )
+
+
+@pytest.mark.skipif(
+    not all(shutil.which(t) for t in ("bcftools", "tabix", "bgzip")),
+    reason="needs bcftools, tabix and bgzip",
+)
+def test_subset_vcf_repairs_and_sorts_only_when_needed(tmp_path):
+    src = write_vcf(tmp_path / "src.vcf.gz", STRELKA_LIKE)
+    out = tmp_path / "out"
+    out.mkdir()
+    build.subset_vcf(src, out / "x.vcf.gz", None)
+    # no temporary folder left behind
+    assert sorted(p.name for p in out.iterdir()) == ["x.vcf.gz", "x.vcf.gz.tbi"]
+    with gzip.open(out / "x.vcf.gz", "rt") as fh:
+        lines = fh.read().splitlines()
+    body = [line.split("\t")[:2] for line in lines if not line.startswith("#")]
+    assert body == [["chr1", "10"], ["chr1", "15"], ["chr2", "20"]]
+    assert any(line.startswith("##INFO=<ID=QSI,Number=1,Type=Integer") for line in lines)
+    # a valid source is not changed: no added definitions, records as they were
+    valid = write_vcf(tmp_path / "valid.vcf.gz", STRELKA_LIKE[:7])
+    build.subset_vcf(valid, out / "v.vcf.gz", None)
+    with gzip.open(out / "v.vcf.gz", "rt") as fh:
+        text = fh.read()
+    assert "somatic-refdata" not in text and text.endswith(STRELKA_LIKE[6] + "\n")

@@ -652,13 +652,43 @@ def subset_vcf(src, dest, contigs, types=None):
     types (bcftools -v: snps, indels; all if None).
 
     Streams with -t (targets), not -r: some SEQC2 VCFs are plain gzip without index.
+    Source VCFs that tabix can't index are repaired, and only these (outputs of valid
+    sources stay byte-identical): keys used without header definition get one
+    (vcfprep.scan_vcf), records out of order are sorted (bcftools sort).
     """
-    cmd = ["bcftools", "view", "--no-version", "-Oz", "-o", dest]
-    if contigs:
-        cmd += ["-t", ",".join(contigs)]
-    if types:
-        cmd += ["-v", types]
-    run([*cmd, src])
+    dest = Path(dest)
+    with tempfile.TemporaryDirectory(dir=dest.parent, prefix=".subset_") as tmp:
+        tmp = Path(tmp)
+        # VCF, not BCF: BCF can't hold records with undefined INFO/FORMAT keys
+        part = tmp / "subset.vcf.gz"
+        cmd = ["bcftools", "view", "--no-version", "-Oz", "-o", part]
+        if contigs:
+            cmd += ["-t", ",".join(contigs)]
+        if types:
+            cmd += ["-v", types]
+        run([*cmd, src])
+        found = vcfprep.scan_vcf(part)
+        if found["missing"]:
+            log.warning(
+                "%s: %d keys without header definition, definitions added: %s",
+                Path(src).name,
+                len(found["missing"]),
+                ", ".join(vcfprep.key_of(line) for line in found["missing"]),
+            )
+            header = tmp / "header.txt"
+            header.write_text(vcfprep.header_with(found["header"], found["missing"]))
+            fixed = tmp / "header_fixed.vcf.gz"
+            run(["bcftools", "reheader", "-h", header, "-o", fixed, part])
+            part = fixed
+        if found["unsorted"]:
+            log.warning(
+                "%s: records not sorted (e.g. SNVs and indels concatenated), sorted",
+                Path(src).name,
+            )
+            ordered = tmp / "sorted.vcf.gz"
+            run(["bcftools", "sort", "-Oz", "-o", ordered, "-T", tmp / "sort", part])
+            part = ordered
+        os.replace(part, dest)
     run(["tabix", "-f", "-p", "vcf", dest])
 
 

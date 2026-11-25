@@ -118,3 +118,123 @@ def transform_file(src, plain_dest, sample_order=None, format_dp=False):
         stats["ad_missing"],
     )
     return stats
+
+
+# Header repair and sort check of source VCFs -------------------------------------------
+
+UNDEFINED_DESCRIPTION = (
+    "Not defined in the source VCF header; Number and Type inferred from the values "
+    "(added by somatic-refdata)"
+)
+TYPES = ("Integer", "Float", "String")
+
+
+def _fits(text, kind):
+    try:
+        kind(text)
+    except ValueError:
+        return False
+    return True
+
+
+def _note_value(table, key, value):
+    """Record one value (None: INFO flag without '=') of a key without header definition."""
+    entry = table.setdefault(key, {"bare": False, "valued": False, "type": 0, "multi": False})
+    if value is None:
+        entry["bare"] = True
+        return
+    entry["valued"] = True
+    entry["multi"] = entry["multi"] or "," in value
+    for part in value.split(","):
+        if part in (".", ""):
+            continue
+        # Integer -> Float -> String: the narrowest type that fits all values
+        if entry["type"] == 0 and not _fits(part, int):
+            entry["type"] = 1
+        if entry["type"] == 1 and not _fits(part, float):
+            entry["type"] = 2
+
+
+def _definition(kind, key, entry):
+    """##INFO/##FORMAT line of a key from its observed values."""
+    if kind == "INFO" and entry["bare"] and not entry["valued"]:
+        number, vtype = "0", "Flag"
+    elif entry["bare"] or not entry["valued"]:
+        # with and without value (or only empty FORMAT values): no single type fits
+        number, vtype = ".", "String"
+    else:
+        number, vtype = ("." if entry["multi"] else "1"), TYPES[entry["type"]]
+    return (
+        f"##{kind}=<ID={key},Number={number},Type={vtype},"
+        f'Description="{UNDEFINED_DESCRIPTION}">'
+    )
+
+
+def key_of(definition):
+    """'INFO/QSI' of a line '##INFO=<ID=QSI,...>'."""
+    kind, rest = definition[2:].split("=<ID=", 1)
+    return f"{kind}/{rest.split(',', 1)[0]}"
+
+
+def scan_vcf(path):
+    """One pass over a (bgzipped) VCF: what bcftools sort and tabix would trip over.
+
+    Returns {"header": header lines (incl. #CHROM), "missing": ##INFO/##FORMAT lines for
+    keys used in records but not defined in the header, "unsorted": records not in
+    contiguous chromosome blocks with ascending positions, "records": count}.
+
+    Some SEQC2 VCFs are the concatenation of two caller outputs (Strelka: all SNVs, then
+    all indels from chr1 again) with the header of the first only. tabix refuses them
+    ("Chromosome blocks not continuous") and bcftools refuses to sort them or write them
+    as BCF ("Tag not defined in header").
+    """
+    header = []
+    defined = {"INFO": set(), "FORMAT": set()}
+    seen = {"INFO": {}, "FORMAT": {}}
+    finished, current, last_pos = set(), None, 0
+    unsorted = False
+    records = 0
+    with gzip.open(path, "rt") as handle:
+        for line in handle:
+            line = line.rstrip("\n")
+            if line.startswith("#"):
+                header.append(line)
+                for kind in defined:
+                    prefix = f"##{kind}=<ID="
+                    if line.startswith(prefix):
+                        defined[kind].add(line[len(prefix) :].split(",", 1)[0].rstrip(">"))
+                continue
+            records += 1
+            cols = line.split("\t")
+            chrom, pos = cols[0], int(cols[1])
+            if chrom != current:
+                # a chromosome that already had a block of records: not contiguous
+                unsorted = unsorted or chrom in finished
+                if current is not None:
+                    finished.add(current)
+                current = chrom
+            elif pos < last_pos:
+                unsorted = True
+            last_pos = pos
+            if len(cols) > 7 and cols[7] != ".":
+                for item in cols[7].split(";"):
+                    key, sep, value = item.partition("=")
+                    if key not in defined["INFO"]:
+                        _note_value(seen["INFO"], key, value if sep else None)
+            if len(cols) > 9:
+                keys = cols[8].split(":")
+                undefined = [i for i, key in enumerate(keys) if key not in defined["FORMAT"]]
+                for sample in cols[9:] if undefined else ():
+                    values = sample.split(":")
+                    for i in undefined:
+                        value = values[i] if i < len(values) else "."
+                        _note_value(seen["FORMAT"], keys[i], value)
+    missing = [_definition(kind, key, entry) for kind in seen for key, entry in seen[kind].items()]
+    return {"header": header, "missing": missing, "unsorted": unsorted, "records": records}
+
+
+def header_with(header, missing):
+    """Header text with the missing definitions inserted before the #CHROM line."""
+    if not header or not header[-1].startswith("#CHROM"):
+        raise RuntimeError("VCF header without #CHROM line")
+    return "\n".join(header[:-1] + missing + header[-1:]) + "\n"

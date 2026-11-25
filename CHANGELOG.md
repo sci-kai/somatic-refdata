@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates follow
 ISO 8601 (`YYYY-MM-DD`).
 
+## Unreleased
+
+### `Fixed`
+
+- Building a dataset with SEQC2 Strelka VCFs (e.g. `WES_IL_1.bwa.strelka.vcf.gz`) failed with `tabix ... Chromosome blocks not continuous`: these files are the SNV output followed by the indel output (chr1 again), with the header of the SNV file only. `subset_vcf` now scans each subset once and repairs only what is broken, so outputs of valid sources stay byte-identical (recipes unchanged): INFO/FORMAT keys without header definition get one (Number/Type inferred from the values, description says so; Strelka: QSI, TQSI, RU, IC, IHP, TAR, TIR, ...), then unsorted records are sorted with `bcftools sort`. The records stay the same; bcftools writes floats shorter (`0.00` -> `0`)
+
 ## 0.1.0 (2026-11-12)
 
 ### `Added`
